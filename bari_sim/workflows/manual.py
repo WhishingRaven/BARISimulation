@@ -318,6 +318,44 @@ def manual_selection_overlay_text() -> str:
     return "ROBOT SELECT\n1→R1 2→R2 3→R3 4→R4 5→R5\n6→R6 7→R7 8→R8 9→R9 0→R10"
 
 
+def _sync_robot_labels(viewer, simulation: Simulation) -> None:
+    """Draw each robot number as a camera-facing label above its body."""
+
+    user_scene = viewer.user_scn
+    attachment_labels = simulation.attachments.active_labels()
+    label_count = min(
+        simulation.robot_count + len(attachment_labels), user_scene.maxgeom
+    )
+    user_scene.ngeom = label_count
+    for robot_id in range(min(simulation.robot_count, label_count)):
+        geom = user_scene.geoms[robot_id]
+        body_position = simulation.data.xpos[simulation.root_body_ids[robot_id]]
+        position = body_position + (0.0, 0.0, simulation.robot.height_m * 2.5)
+        _init_label_geom(geom, position, str(robot_id + 1))
+    for index, (position, strain_g) in enumerate(
+        attachment_labels, start=simulation.robot_count
+    ):
+        if index >= label_count:
+            break
+        _init_label_geom(
+            user_scene.geoms[index],
+            position + (0.0, 0.0, simulation.robot.height_m),
+            f"strain: {strain_g:.1f} g",
+        )
+
+
+def _init_label_geom(geom, position, label: str) -> None:
+    mujoco.mjv_initGeom(
+        geom,
+        mujoco.mjtGeom.mjGEOM_LABEL,
+        (0.0, 0.0, 0.0),
+        position,
+        (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+        (1.0, 1.0, 0.35, 1.0),
+    )
+    geom.label = label
+
+
 def _sync_manual_overlay(
     viewer, controller: ManualController, simulation: Simulation
 ) -> None:
@@ -367,6 +405,7 @@ def run_manual_viewer(simulation: Simulation) -> None:
         shortcut_defaults = ManualShortcutDefaults.capture(viewer)
         viewer.sync()
         _apply_manual_camera(viewer, simulation, reset_orientation=True)
+        _sync_robot_labels(viewer, simulation)
         _sync_manual_overlay(viewer, controller, simulation)
         while viewer.is_running():
             controller.process_keys()
@@ -402,6 +441,7 @@ def run_manual_viewer(simulation: Simulation) -> None:
             def sync_frame(_simulation: Simulation) -> bool:
                 controller.process_keys()
                 shortcut_defaults.restore(viewer)
+                _sync_robot_labels(viewer, simulation)
                 viewer.sync()
                 return viewer.is_running()
 

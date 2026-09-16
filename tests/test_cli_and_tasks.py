@@ -4,6 +4,7 @@ import mujoco
 import pytest
 
 from bari_sim.cli import build_parser, main
+from bari_sim.robot import GripAction, RobotAction
 from bari_sim.simulation import SceneBuilder, SceneRequest, Simulation
 from bari_sim.tasks import (
     DIFFICULTY_VALUES,
@@ -15,6 +16,7 @@ from bari_sim.tasks import (
 from bari_sim.workflows.manual import (
     ManualController,
     ManualShortcutDefaults,
+    _sync_robot_labels,
     manual_camera_pose,
     manual_overlay_text,
     manual_selection_overlay_text,
@@ -51,6 +53,18 @@ def test_flat_scene_includes_non_colliding_floor_grid() -> None:
     assert 'name="floor_grid_y_+0"' in scene.xml
     assert 'contype="0"' in scene.xml
     assert 'conaffinity="0"' in scene.xml
+
+
+def test_manual_labels_include_strain_at_active_attachment() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    simulation.step({0: RobotAction()})
+    simulation.step({0: RobotAction(grip=GripAction.ATTACH)})
+    viewer = type("Viewer", (), {})()
+    viewer.user_scn = mujoco.MjvScene(simulation.model, 4)
+    _sync_robot_labels(viewer, simulation)
+    assert viewer.user_scn.ngeom == 2
+    assert viewer.user_scn.geoms[1].label.startswith("strain: ")
+    assert viewer.user_scn.geoms[1].label.endswith(" g")
 
 
 def test_help_command_and_required_command_shapes(capsys) -> None:
@@ -126,7 +140,7 @@ def test_manual_overlay_shows_controls_and_active_action() -> None:
 def test_manual_camera_tightly_frames_one_robot_and_scales_with_formation() -> None:
     single = manual_camera_pose(Simulation(SceneRequest(RobotGrid(1, 1), "flat")))
     swarm = manual_camera_pose(Simulation(SceneRequest(RobotGrid(6, 5), "flat")))
-    assert single.lookat == pytest.approx((0.045, 0.0, 0.005))
+    assert single.lookat == pytest.approx((0.045, 0.0, 0.0025))
     assert single.distance == pytest.approx(0.28)
     assert single.azimuth == 90.0
     assert single.elevation == -65.0

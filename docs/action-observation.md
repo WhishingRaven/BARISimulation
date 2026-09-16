@@ -42,7 +42,7 @@ Policy는 세 component를 매 step 다시 출력합니다. Manual의 W/S/A/D는
 
 ```text
 nearby_robot_ids: tuple[int, ...]
-strain_value: float                 # g-force, 0..50
+strain_value: float                 # g-force, 0..100
 distance1, distance2, distance3, distance4: float  # metre
 is_curled: bool
 is_front_lifted: bool
@@ -52,7 +52,7 @@ is_detached: bool
 ```
 
 - `nearby_robot_ids`: 매 step 통신 반경 0.50 m 이내 ID를 정렬해 저장합니다.
-- `strain_value`: 현재 가시 constraint 하중을 gram-force로 변환한 값입니다. 최대 표시값은 50입니다.
-- `is_possible_to_attach`: 현재 rear spike line에 적합한 환경/로봇 contact가 있습니다.
+- `strain_value`: 현재 가시 constraint 하중을 gram-force로 변환한 값입니다. 최대 표시값은 100입니다.
+- `is_possible_to_attach`: 현재 rear spike line이 적합한 환경/로봇 표면에 접촉했거나 attachment tolerance 이내로 접근해 있습니다.
 - `is_attaching`: attachment constraint가 현재 활성 상태입니다.
 - `is_detached`: 다른 로봇과 연결되었거나 다른 로봇 접촉 중 overload로 해제된 step에 참입니다.

@@ -368,7 +368,7 @@ class SceneBuilder:
             "pos": "0 0 0.0002",
             "contype": "0",
             "conaffinity": "0",
-            "group": "1",
+            "group": "2",
         }
         x_count = round(grid_half_x / spacing)
         y_count = round(grid_half_y / spacing)
@@ -601,23 +601,20 @@ class SceneBuilder:
                 "diaginertia": _numbers(inertia),
             },
         )
-        ET.SubElement(
-            body,
-            "geom",
-            {
-                "name": geom_name(robot_id, link),
-                "type": "box",
-                "pos": _numbers((center_x, 0.0, 0.0)),
-                "size": _numbers((length / 2.0, width / 2.0, height / 2.0)),
-                "mass": "0",
-                "friction": "1.1 0.005 0.0001",
-                "condim": "4",
-                "solref": "0.015 1",
-                "solimp": "0.9 0.95 0.001",
-                "rgba": _numbers(color),
-                # MuJoCo hides geom groups 3-5 by default.  Keep the robots in
-                # their own, visible group so every viewer shows them without
-                # requiring a manual visibility toggle.
-                "group": "1",
-            },
-        )
+        geom_attributes = {
+            "name": geom_name(robot_id, link),
+            "type": "box",
+            "pos": _numbers((center_x, 0.0, 0.0)),
+            "mass": "0",
+            "friction": "1.1 0.005 0.0001",
+            "condim": "4",
+            "solref": "0.015 1",
+            "solimp": "0.9 0.95 0.001",
+            "rgba": _numbers(color),
+            # MuJoCo hides geom groups 3-5 by default.  Keep the robots in
+            # their own, visible group so every viewer shows them without
+            # requiring a manual visibility toggle.
+            "group": "1",
+        }
+        geom_attributes["size"] = _numbers((length / 2.0, width / 2.0, height / 2.0))
+        ET.SubElement(body, "geom", geom_attributes)

@@ -216,6 +216,17 @@ class AttachmentManager:
     def is_possible(self, robot_id: int) -> bool:
         return robot_id in self._active or self._find_candidate(robot_id) is not None
 
+    def active_labels(self) -> tuple[tuple[np.ndarray, float], ...]:
+        """Return world positions and strain values for active attachments."""
+
+        return tuple(
+            (
+                np.asarray(self.data.site_xpos[attachment.source_site_id]).copy(),
+                float(self._last_strain_g[robot_id]),
+            )
+            for robot_id, attachment in self._active.items()
+        )
+
     def is_attaching(self, robot_id: int) -> bool:
         return robot_id in self._active
 
@@ -283,11 +294,44 @@ class AttachmentManager:
                 )
             )
         if not candidates:
-            return None
+            return self._find_nearby_surface(robot_id)
         _, _, body_id, target_id, point = min(
             candidates, key=lambda item: (item[0], item[1])
         )
         return body_id, target_id, point
+
+    def _find_nearby_surface(
+        self, robot_id: int
+    ) -> tuple[int, int | None, np.ndarray] | None:
+        """Find a floor or robot-top surface just below the rear spike."""
+
+        site_id = self.spike_site_ids[robot_id]
+        source_body_id = self.model.body(body_name(robot_id, "rear")).id
+        origin = np.asarray(self.data.site_xpos[site_id], dtype=np.float64).copy()
+        hit_geom = np.asarray((-1,), dtype=np.int32)
+        distance = mujoco.mj_ray(
+            self.model,
+            self.data,
+            origin,
+            np.asarray((0.0, 0.0, -1.0), dtype=np.float64),
+            np.asarray((1, 1, 0, 0, 0, 0), dtype=np.uint8),
+            True,
+            source_body_id,
+            hit_geom,
+        )
+        if distance < 0.0 or distance > self.robot.attachment_contact_tolerance_m:
+            return None
+        target_geom_id = int(hit_geom[0])
+        target_robot_id = self.geom_to_robot.get(target_geom_id)
+        if target_robot_id == robot_id:
+            return None
+        target_body_id = (
+            0
+            if target_robot_id is None
+            else int(self.model.geom_bodyid[target_geom_id])
+        )
+        point = origin + np.asarray((0.0, 0.0, -distance), dtype=np.float64)
+        return target_body_id, target_robot_id, point
 
     def _constraint_force(self, equality_id: int) -> float:
         count = int(self.data.nefc)

@@ -18,13 +18,13 @@ class RobotSpecification:
 
     width_m: float = 0.10
     length_m: float = 0.15
-    height_m: float = 0.01
+    height_m: float = 0.005
     mass_kg: float = 0.05
     rear_length_m: float = 0.06
     middle_length_m: float = 0.07
     front_length_m: float = 0.02
     front_sensor_offset_m: float = 0.04
-    maximum_strain_g: float = 50.0
+    maximum_strain_g: float = 100.0
     control_interval_s: float = 0.5
 
     # Implementation parameters for the pre-tuned discrete actions.
@@ -60,10 +60,10 @@ class RobotSpecification:
         if (self.width_m, self.length_m, self.height_m, self.mass_kg) != (
             0.10,
             0.15,
-            0.01,
+            0.005,
             0.05,
         ):
-            raise ValueError("the fixed 10 x 15 x 1 cm, 50 g specification changed")
+            raise ValueError("the fixed 10 x 15 x 0.5 cm, 50 g specification changed")
         if self.front_length_m != 0.02 or self.rear_length_m != 0.06:
             raise ValueError("front and rear articulated lengths are fixed")
         if self.front_sensor_offset_m != 0.04:
