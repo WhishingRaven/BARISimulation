@@ -43,6 +43,16 @@ def test_curl_flatten_cycle_moves_forward_from_contact_friction() -> None:
     assert final_x - initial_x > 0.10
 
 
+def test_repeating_an_already_reached_posture_does_not_creep() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    simulation.step({0: RobotAction()})
+    simulation.step({0: RobotAction(MotionAction.CURL_BODY)})
+    simulation.halt_motion()
+    pose = simulation.data.qpos.copy()
+    simulation.step({0: RobotAction(MotionAction.CURL_BODY)})
+    assert simulation.data.qpos[:7] == pytest.approx(pose[:7])
+
+
 def test_turn_rotates_whole_free_body_by_one_tuned_increment() -> None:
     simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
     simulation.step({0: RobotAction()})
@@ -82,11 +92,24 @@ def test_rear_attachment_holds_then_breaks_above_50_grams_force() -> None:
     simulation.step({0: RobotAction()})
     attached = simulation.step({0: RobotAction(grip=GripAction.ATTACH)})
     assert attached.observations[0].is_attaching
-    overloaded = simulation.step(
+    pose = simulation.data.qpos.copy()
+    motion_while_attached = simulation.step(
+        {0: RobotAction(MotionAction.CURL_BODY, grip=GripAction.ATTACH)}
+    )
+    assert motion_while_attached.observations[0].is_attaching
+    assert simulation.data.qpos[:7] == pytest.approx(pose[:7])
+    held = simulation.step(
         {0: RobotAction(grip=GripAction.ATTACH)},
-        external_forces_n={0: (0.0, 0.0, 1.0)},
+        external_forces_n={0: (0.1, 0.0, 0.0)},
+    )
+    assert held.observations[0].is_attaching
+    assert simulation.data.qpos[:7] == pytest.approx(pose[:7])
+    overloaded = simulation.step(
+        {0: RobotAction(grip=GripAction.ATTACH)}, external_forces_n={0: (1.0, 0.0, 0.0)}
     )
     assert not overloaded.observations[0].is_attaching
+    assert overloaded.observations[0].strain_value == pytest.approx(50.0)
+    assert simulation.data.qpos[0] > pose[0]
     assert any(
         event.event == "overload_detached" for event in overloaded.attachment_events
     )

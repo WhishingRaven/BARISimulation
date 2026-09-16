@@ -265,7 +265,9 @@ class ManualController:
         )
 
 
-def manual_overlay_text(controller: ManualController) -> tuple[str, str]:
+def manual_overlay_text(
+    controller: ManualController, simulation: Simulation | None = None
+) -> tuple[str, str]:
     """Return the controls and LED-style current action status."""
 
     action = controller.selected_action()
@@ -287,15 +289,34 @@ def manual_overlay_text(controller: ManualController) -> tuple[str, str]:
         f"LIFT    ● {lift}\n"
         f"GRIP    ● {grip}"
     )
+    if simulation is not None:
+        observation = simulation.observations()[controller.state.selected_robot_id]
+        nearby = ", ".join(
+            str(robot_id + 1) for robot_id in observation.nearby_robot_ids
+        )
+        status += (
+            f"\nSTRAIN  {observation.strain_value:.1f} / "
+            f"{simulation.robot.maximum_strain_g:.1f} g"
+            f"\nRANGE   F {observation.distance1:.3f}  D {observation.distance2:.3f}"
+            f"\n        L {observation.distance3:.3f}  R {observation.distance4:.3f}"
+            f"\nSTATE   curled={int(observation.is_curled)} "
+            f"lifted={int(observation.is_front_lifted)}"
+            f"\nATTACH  possible={int(observation.is_possible_to_attach)} "
+            f"active={int(observation.is_attaching)} "
+            f"detached={int(observation.is_detached)}"
+            f"\nNEARBY  {nearby or '-'}"
+        )
     return controls, status
 
 
-def _sync_manual_overlay(viewer, controller: ManualController) -> None:
+def _sync_manual_overlay(
+    viewer, controller: ManualController, simulation: Simulation
+) -> None:
     camera_lookat = tuple(float(value) for value in viewer.cam.lookat)
     camera_distance = float(viewer.cam.distance)
     camera_azimuth = float(viewer.cam.azimuth)
     camera_elevation = float(viewer.cam.elevation)
-    controls, status = manual_overlay_text(controller)
+    controls, status = manual_overlay_text(controller, simulation)
     viewer.set_texts(
         [
             (
@@ -336,7 +357,7 @@ def run_manual_viewer(simulation: Simulation) -> None:
         shortcut_defaults = ManualShortcutDefaults.capture(viewer)
         viewer.sync()
         _apply_manual_camera(viewer, simulation, reset_orientation=True)
-        _sync_manual_overlay(viewer, controller)
+        _sync_manual_overlay(viewer, controller, simulation)
         while viewer.is_running():
             controller.process_keys()
             controller.refresh_held_motion(key_poller.pressed_motion_keys())
@@ -347,7 +368,7 @@ def run_manual_viewer(simulation: Simulation) -> None:
                 _apply_manual_camera(viewer, simulation, reset_orientation=True)
             if controller.state.paused:
                 viewer.sync()
-                _sync_manual_overlay(viewer, controller)
+                _sync_manual_overlay(viewer, controller, simulation)
                 shortcut_defaults.restore(viewer)
                 time.sleep(1.0 / 60.0)
                 continue
@@ -363,7 +384,7 @@ def run_manual_viewer(simulation: Simulation) -> None:
                     simulation.halt_motion()
                     controller.mark_stopped()
                 viewer.sync()
-                _sync_manual_overlay(viewer, controller)
+                _sync_manual_overlay(viewer, controller, simulation)
                 shortcut_defaults.restore(viewer)
                 time.sleep(1.0 / 60.0)
                 continue
@@ -372,7 +393,7 @@ def run_manual_viewer(simulation: Simulation) -> None:
                 controller.process_keys()
                 shortcut_defaults.restore(viewer)
                 viewer.sync()
-                _sync_manual_overlay(viewer, controller)
+                _sync_manual_overlay(viewer, controller, simulation)
                 shortcut_defaults.restore(viewer)
                 return viewer.is_running()
 

@@ -127,8 +127,11 @@ class Simulation:
     ) -> StepResult:
         self._validate_actions(actions)
         self.attachments.begin_control_step()
+        locked_roots = set(lock_root_motion or ())
         for robot_id in range(self.robot_count):
             action = actions[robot_id]
+            if self._rear_posture_is_reached(robot_id, action.motion):
+                locked_roots.add(robot_id)
             self._set_action(robot_id, action)
         mujoco.mj_forward(self.model, self.data)
         for robot_id in range(self.robot_count):
@@ -137,7 +140,7 @@ class Simulation:
             self._last_actions[robot_id] = action
 
         collision_pairs: set[tuple[int, int]] = set()
-        locked_roots = tuple(lock_root_motion or ())
+        locked_roots = tuple(locked_roots)
         locked_poses = {
             robot_id: (
                 self.data.qpos[
@@ -171,6 +174,8 @@ class Simulation:
             if locked_poses:
                 mujoco.mj_forward(self.model, self.data)
             self.attachments.post_physics_step()
+            if self.attachments.lock_active_roots():
+                mujoco.mj_forward(self.model, self.data)
             collision_pairs.update(self._robot_collision_pairs())
             if frame_callback is not None and (
                 physics_index % callback_stride == 0
@@ -267,9 +272,9 @@ class Simulation:
             else action.motion
         )
         if motion is MotionAction.CURL_BODY:
-            self._desired_targets[robot_id, 0] = self.robot.curl_angle_rad
+            self._set_rear_target_if_needed(robot_id, self.robot.curl_angle_rad)
         elif motion is MotionAction.FLATTEN_BODY:
-            self._desired_targets[robot_id, 0] = 0.0
+            self._set_rear_target_if_needed(robot_id, 0.0)
         elif motion is MotionAction.STOP:
             self._desired_targets[robot_id, 0] = self._joint_position(robot_id, 0)
         if motion in {MotionAction.TURN_LEFT, MotionAction.TURN_RIGHT}:
@@ -280,6 +285,28 @@ class Simulation:
             if action.lift is LiftAction.LIFT_FRONT
             else 0.0
         )
+
+    def _set_rear_target_if_needed(self, robot_id: int, target: float) -> None:
+        """Avoid re-driving a posture that is already reached.
+
+        Reapplying curl/flatten at the target creates contact impulses that
+        make a stationary manual robot creep across the floor.
+        """
+
+        current = self._joint_position(robot_id, 0)
+        if abs(current - target) <= np.deg2rad(8.0):
+            self._desired_targets[robot_id, 0] = current
+        else:
+            self._desired_targets[robot_id, 0] = target
+
+    def _rear_posture_is_reached(self, robot_id: int, motion: MotionAction) -> bool:
+        target = {
+            MotionAction.CURL_BODY: self.robot.curl_angle_rad,
+            MotionAction.FLATTEN_BODY: 0.0,
+        }.get(motion)
+        return target is not None and abs(
+            self._joint_position(robot_id, 0) - target
+        ) <= np.deg2rad(8.0)
 
     def _apply_joint_control(self) -> None:
         maximum_step = self.robot.joint_speed_rad_s * self.timestep_s

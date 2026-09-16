@@ -94,10 +94,15 @@ def test_manual_actions_latch_independently() -> None:
 def test_manual_overlay_shows_controls_and_active_action() -> None:
     controller = ManualController(1)
     controller.handle_key("w")
-    controls, status = manual_overlay_text(controller)
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    controls, status = manual_overlay_text(controller, simulation)
     assert "Hold W/S" in controls
     assert "● CURL_BODY" in status
     assert "ROBOT 1" in status
+    assert "STRAIN" in status
+    assert "RANGE" in status
+    assert "ATTACH" in status
+    assert "NEARBY" in status
 
 
 def test_manual_camera_tightly_frames_one_robot_and_scales_with_formation() -> None:

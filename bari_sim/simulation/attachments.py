@@ -29,6 +29,8 @@ class Attachment:
     equality_id: int
     source_site_id: int
     target_site_id: int
+    root_qpos: np.ndarray
+    root_qvel: np.ndarray
     force_n: float = 0.0
 
 
@@ -100,6 +102,8 @@ class AttachmentManager:
         target_body_id, target_robot_id, world_point = candidate
         source_site_id = self.spike_site_ids[robot_id]
         source_body_id = self.model.body(body_name(robot_id, "rear")).id
+        root_joint_id = int(self.model.body_jntadr[source_body_id])
+        root_qpos_address = int(self.model.jnt_qposadr[root_joint_id])
         source_local = self._world_to_local(source_body_id, world_point)
         # The physical spike is a line across the rear edge.  Moving this
         # non-physical site along y selects the actual point on that line.
@@ -136,6 +140,8 @@ class AttachmentManager:
             equality_id=equality_id,
             source_site_id=source_site_id,
             target_site_id=target_site_id,
+            root_qpos=self.data.qpos[root_qpos_address : root_qpos_address + 7].copy(),
+            root_qvel=np.zeros(6, dtype=np.float64),
         )
         self._last_strain_g[robot_id] = 0.0
         mujoco.mj_forward(self.model, self.data)
@@ -150,6 +156,8 @@ class AttachmentManager:
         self.model.site_pos[attachment.source_site_id] = self._default_spike_positions[
             robot_id
         ]
+        if not overloaded:
+            self._last_strain_g[robot_id] = 0.0
         self._detached_by_other[robot_id] = caused_by_other
         self._events.append(
             AttachmentEvent(
@@ -165,7 +173,18 @@ class AttachmentManager:
     def post_physics_step(self) -> None:
         failures: list[tuple[int, bool]] = []
         for robot_id, attachment in tuple(self._active.items()):
-            force_n = self._constraint_force(attachment.equality_id)
+            constraint_force_n = self._constraint_force(attachment.equality_id)
+            external_force_n = float(
+                np.linalg.norm(self.data.xfrc_applied[attachment.target_body_id, :3])
+            )
+            source_body_id = self.model.body(
+                body_name(attachment.source_robot_id, "rear")
+            ).id
+            external_force_n = max(
+                external_force_n,
+                float(np.linalg.norm(self.data.xfrc_applied[source_body_id, :3])),
+            )
+            force_n = max(constraint_force_n, external_force_n)
             attachment.force_n = force_n
             strain_g = force_n / GRAVITY_M_S2 * 1000.0
             self._last_strain_g[robot_id] = min(strain_g, self.robot.maximum_strain_g)
@@ -178,6 +197,22 @@ class AttachmentManager:
         for robot_id, caused_by_other in failures:
             self.detach(robot_id, caused_by_other=caused_by_other, overloaded=True)
 
+    def lock_active_roots(self) -> bool:
+        """Keep a non-overloaded attachment rigid at its latched world pose."""
+
+        if not self._active:
+            return False
+        for attachment in self._active.values():
+            source_body_id = self.model.body(
+                body_name(attachment.source_robot_id, "rear")
+            ).id
+            root_joint_id = int(self.model.body_jntadr[source_body_id])
+            qpos_address = int(self.model.jnt_qposadr[root_joint_id])
+            dof_address = int(self.model.jnt_dofadr[root_joint_id])
+            self.data.qpos[qpos_address : qpos_address + 7] = attachment.root_qpos
+            self.data.qvel[dof_address : dof_address + 6] = attachment.root_qvel
+        return True
+
     def is_possible(self, robot_id: int) -> bool:
         return robot_id in self._active or self._find_candidate(robot_id) is not None
 
@@ -188,7 +223,11 @@ class AttachmentManager:
         return bool(self._detached_by_other[robot_id])
 
     def strain_value(self, robot_id: int) -> float:
-        if robot_id not in self._active and not self._detached_by_other[robot_id]:
+        if (
+            robot_id not in self._active
+            and not self._detached_by_other[robot_id]
+            and self._last_strain_g[robot_id] == 0.0
+        ):
             return 0.0
         return float(self._last_strain_g[robot_id])
 
