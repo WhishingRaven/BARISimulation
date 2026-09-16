@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "bari-simulation"
 version = "0.1.0"
-description = "Experimental platform for emergent swarm robotics"
+description = "MuJoCo simulation for BARI collision-avoidance, gap, and step tasks"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -17,11 +17,7 @@ dependencies = [
 dev = ["pytest>=8.3", "ruff>=0.16"]
 
 [project.scripts]
-bari-manual = "bari_sim.cli:manual_main"
-bari-gait-test = "bari_sim.cli:gait_test_main"
-bari-attachment-test = "bari_sim.cli:attachment_test_main"
-bari-baseline = "bari_sim.cli:baseline_main"
-bari-swarm = "bari_sim.swarm.cli:main"
+barisimulation = "bari_sim.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["bari_sim*"]

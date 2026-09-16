@@ -1,13 +1,16 @@
-"""BARI articulated swarm research simulator."""
+"""BARI's three-task articulated swarm simulation."""
 
-from .config import ExperimentConfig, load_experiment_config
-from .types import LocalObservation, RobotAction
+from .robot import RobotAction, RobotObservation, RobotSpecification
+from .simulation import SceneRequest, Simulation
+from .tasks import RobotGrid, TaskName, task_definition
 
 __all__ = [
-    "ExperimentConfig",
-    "LocalObservation",
     "RobotAction",
-    "load_experiment_config",
+    "RobotGrid",
+    "RobotObservation",
+    "RobotSpecification",
+    "SceneRequest",
+    "Simulation",
+    "TaskName",
+    "task_definition",
 ]
-
-__version__ = "0.1.0"

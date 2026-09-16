@@ -1,0 +1,284 @@
+"""Contact-gated, breakable rear spike-line attachments."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import mujoco
+import numpy as np
+
+from ..robot.actions import GripAction
+from ..robot.specification import DEFAULT_ROBOT, GRAVITY_M_S2, RobotSpecification
+from .scene import (
+    LINK_NAMES,
+    body_name,
+    geom_name,
+    robot_equality_name,
+    robot_target_site_name,
+    spike_site_name,
+    world_equality_name,
+    world_target_site_name,
+)
+
+
+@dataclass
+class Attachment:
+    source_robot_id: int
+    target_robot_id: int | None
+    target_body_id: int
+    equality_id: int
+    source_site_id: int
+    target_site_id: int
+    force_n: float = 0.0
+
+
+@dataclass(frozen=True)
+class AttachmentEvent:
+    event: str
+    source_robot_id: int
+    target_robot_id: int | None
+    strain_value: float
+    caused_by_other_robot: bool = False
+
+
+class AttachmentManager:
+    def __init__(
+        self,
+        model: mujoco.MjModel,
+        data: mujoco.MjData,
+        robot_count: int,
+        robot: RobotSpecification = DEFAULT_ROBOT,
+    ):
+        self.model = model
+        self.data = data
+        self.robot_count = robot_count
+        self.robot = robot
+        self.rear_geom_ids = {
+            robot_id: model.geom(geom_name(robot_id, "rear")).id
+            for robot_id in range(robot_count)
+        }
+        self.geom_to_robot: dict[int, int] = {}
+        self.body_to_robot: dict[int, int] = {}
+        self.body_to_link: dict[int, str] = {}
+        for robot_id in range(robot_count):
+            for link in LINK_NAMES:
+                geom_id = model.geom(geom_name(robot_id, link)).id
+                body_id = model.body(body_name(robot_id, link)).id
+                self.geom_to_robot[geom_id] = robot_id
+                self.body_to_robot[body_id] = robot_id
+                self.body_to_link[body_id] = link
+        self.spike_site_ids = {
+            robot_id: model.site(spike_site_name(robot_id)).id
+            for robot_id in range(robot_count)
+        }
+        self._default_spike_positions = {
+            robot_id: np.asarray(model.site_pos[site_id]).copy()
+            for robot_id, site_id in self.spike_site_ids.items()
+        }
+        self._active: dict[int, Attachment] = {}
+        self._last_strain_g = np.zeros(robot_count, dtype=np.float64)
+        self._detached_by_other = np.zeros(robot_count, dtype=np.bool_)
+        self._events: list[AttachmentEvent] = []
+        self._all_equality_ids = tuple(range(model.neq))
+
+    def begin_control_step(self) -> None:
+        self._detached_by_other[:] = False
+        self._events.clear()
+
+    def apply_command(self, robot_id: int, command: GripAction) -> None:
+        if command is GripAction.DETACH:
+            self.detach(robot_id, caused_by_other=False, overloaded=False)
+        else:
+            self.attach(robot_id)
+
+    def attach(self, robot_id: int) -> bool:
+        if robot_id in self._active:
+            return True
+        candidate = self._find_candidate(robot_id)
+        if candidate is None:
+            return False
+        target_body_id, target_robot_id, world_point = candidate
+        source_site_id = self.spike_site_ids[robot_id]
+        source_body_id = self.model.body(body_name(robot_id, "rear")).id
+        source_local = self._world_to_local(source_body_id, world_point)
+        # The physical spike is a line across the rear edge.  Moving this
+        # non-physical site along y selects the actual point on that line.
+        source_local[0] = -self.robot.rear_length_m / 2.0
+        source_local[2] = -self.robot.height_m / 2.0
+        self.model.site_pos[source_site_id] = source_local
+
+        if target_robot_id is None:
+            target_site_id = self.model.site(world_target_site_name(robot_id)).id
+            equality_id = self.model.equality(world_equality_name(robot_id)).id
+            self.model.site_pos[target_site_id] = world_point
+        else:
+            target_link = self.body_to_link[target_body_id]
+            target_site_id = self.model.site(
+                robot_target_site_name(robot_id, target_robot_id, target_link)
+            ).id
+            equality_id = self.model.equality(
+                robot_equality_name(robot_id, target_robot_id, target_link)
+            ).id
+            self.model.site_pos[target_site_id] = self._world_to_local(
+                target_body_id, world_point
+            )
+        self.model.site_sameframe[source_site_id] = int(
+            mujoco.mjtSameFrame.mjSAMEFRAME_NONE
+        )
+        self.model.site_sameframe[target_site_id] = int(
+            mujoco.mjtSameFrame.mjSAMEFRAME_NONE
+        )
+        self.data.eq_active[equality_id] = 1
+        self._active[robot_id] = Attachment(
+            source_robot_id=robot_id,
+            target_robot_id=target_robot_id,
+            target_body_id=target_body_id,
+            equality_id=equality_id,
+            source_site_id=source_site_id,
+            target_site_id=target_site_id,
+        )
+        self._last_strain_g[robot_id] = 0.0
+        mujoco.mj_forward(self.model, self.data)
+        self._events.append(AttachmentEvent("attached", robot_id, target_robot_id, 0.0))
+        return True
+
+    def detach(self, robot_id: int, *, caused_by_other: bool, overloaded: bool) -> bool:
+        attachment = self._active.pop(robot_id, None)
+        if attachment is None:
+            return False
+        self.data.eq_active[attachment.equality_id] = 0
+        self.model.site_pos[attachment.source_site_id] = self._default_spike_positions[
+            robot_id
+        ]
+        self._detached_by_other[robot_id] = caused_by_other
+        self._events.append(
+            AttachmentEvent(
+                "overload_detached" if overloaded else "detached",
+                robot_id,
+                attachment.target_robot_id,
+                float(self._last_strain_g[robot_id]),
+                caused_by_other,
+            )
+        )
+        return True
+
+    def post_physics_step(self) -> None:
+        failures: list[tuple[int, bool]] = []
+        for robot_id, attachment in tuple(self._active.items()):
+            force_n = self._constraint_force(attachment.equality_id)
+            attachment.force_n = force_n
+            strain_g = force_n / GRAVITY_M_S2 * 1000.0
+            self._last_strain_g[robot_id] = min(strain_g, self.robot.maximum_strain_g)
+            if force_n > self.robot.maximum_attachment_force_n:
+                caused_by_other = (
+                    attachment.target_robot_id is not None
+                    or self._touching_other_robot(robot_id)
+                )
+                failures.append((robot_id, caused_by_other))
+        for robot_id, caused_by_other in failures:
+            self.detach(robot_id, caused_by_other=caused_by_other, overloaded=True)
+
+    def is_possible(self, robot_id: int) -> bool:
+        return robot_id in self._active or self._find_candidate(robot_id) is not None
+
+    def is_attaching(self, robot_id: int) -> bool:
+        return robot_id in self._active
+
+    def is_detached(self, robot_id: int) -> bool:
+        return bool(self._detached_by_other[robot_id])
+
+    def strain_value(self, robot_id: int) -> float:
+        if robot_id not in self._active and not self._detached_by_other[robot_id]:
+            return 0.0
+        return float(self._last_strain_g[robot_id])
+
+    def drain_events(self) -> tuple[AttachmentEvent, ...]:
+        events = tuple(self._events)
+        self._events.clear()
+        return events
+
+    def reset(self) -> None:
+        for equality_id in self._all_equality_ids:
+            self.data.eq_active[equality_id] = 0
+        for robot_id, site_id in self.spike_site_ids.items():
+            self.model.site_pos[site_id] = self._default_spike_positions[robot_id]
+        self._active.clear()
+        self._last_strain_g[:] = 0.0
+        self._detached_by_other[:] = False
+        self._events.clear()
+
+    def _find_candidate(
+        self, robot_id: int
+    ) -> tuple[int, int | None, np.ndarray] | None:
+        rear_geom_id = self.rear_geom_ids[robot_id]
+        rear_body_id = self.model.body(body_name(robot_id, "rear")).id
+        candidates: list[tuple[bool, float, int, int | None, np.ndarray]] = []
+        rear_edge = -self.robot.rear_length_m / 2.0
+        for contact_index in range(self.data.ncon):
+            contact = self.data.contact[contact_index]
+            if int(contact.geom1) == rear_geom_id:
+                other_geom_id = int(contact.geom2)
+            elif int(contact.geom2) == rear_geom_id:
+                other_geom_id = int(contact.geom1)
+            else:
+                continue
+            target_robot_id = self.geom_to_robot.get(other_geom_id)
+            if target_robot_id == robot_id:
+                continue
+            point = np.asarray(contact.pos, dtype=np.float64).copy()
+            local = self._world_to_local(rear_body_id, point)
+            if local[0] > rear_edge + self.robot.attachment_contact_tolerance_m:
+                continue
+            if abs(local[1]) > self.robot.width_m / 2.0 + 0.003:
+                continue
+            target_body_id = int(self.model.geom_bodyid[other_geom_id])
+            if target_robot_id is None:
+                target_body_id = 0
+            candidates.append(
+                (
+                    target_robot_id is None,
+                    float(contact.dist),
+                    target_body_id,
+                    target_robot_id,
+                    point,
+                )
+            )
+        if not candidates:
+            return None
+        _, _, body_id, target_id, point = min(
+            candidates, key=lambda item: (item[0], item[1])
+        )
+        return body_id, target_id, point
+
+    def _constraint_force(self, equality_id: int) -> float:
+        count = int(self.data.nefc)
+        if count == 0:
+            return 0.0
+        rows = np.flatnonzero(
+            (
+                np.asarray(self.data.efc_type[:count])
+                == int(mujoco.mjtConstraint.mjCNSTR_EQUALITY)
+            )
+            & (np.asarray(self.data.efc_id[:count]) == equality_id)
+        )
+        if rows.size == 0:
+            return 0.0
+        return float(np.linalg.norm(np.asarray(self.data.efc_force[rows])))
+
+    def _touching_other_robot(self, robot_id: int) -> bool:
+        for contact_index in range(self.data.ncon):
+            contact = self.data.contact[contact_index]
+            first = self.geom_to_robot.get(int(contact.geom1))
+            second = self.geom_to_robot.get(int(contact.geom2))
+            if first == robot_id and second is not None and second != robot_id:
+                return True
+            if second == robot_id and first is not None and first != robot_id:
+                return True
+        return False
+
+    def _world_to_local(self, body_id: int, point: np.ndarray) -> np.ndarray:
+        if body_id == 0:
+            return point.copy()
+        rotation = np.asarray(self.data.xmat[body_id]).reshape(3, 3)
+        position = np.asarray(self.data.xpos[body_id])
+        return rotation.T @ (point - position)

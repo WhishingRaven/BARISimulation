@@ -1,0 +1,523 @@
+"""MJCF scene construction for robots and the three supported environments."""
+
+from __future__ import annotations
+
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+
+from ..robot.specification import DEFAULT_ROBOT, RobotSpecification
+from ..tasks.catalog import RobotGrid, TaskDefinition, TaskName
+
+LINK_NAMES = ("rear", "middle", "front")
+ROBOT_COLORS = (
+    (0.12, 0.55, 0.95, 1.0),
+    (0.96, 0.43, 0.18, 1.0),
+    (0.18, 0.72, 0.42, 1.0),
+    (0.72, 0.36, 0.88, 1.0),
+    (0.95, 0.74, 0.14, 1.0),
+)
+
+
+def _numbers(values: tuple[float, ...]) -> str:
+    return " ".join(f"{value:.10g}" for value in values)
+
+
+def body_name(robot_id: int, link: str) -> str:
+    return f"robot_{robot_id}_{link}_body"
+
+
+def geom_name(robot_id: int, link: str) -> str:
+    return f"robot_{robot_id}_{link}_geom"
+
+
+def hinge_name(robot_id: int, hinge: str) -> str:
+    return f"robot_{robot_id}_{hinge}_hinge"
+
+
+def actuator_name(robot_id: int, hinge: str) -> str:
+    return f"robot_{robot_id}_{hinge}_motor"
+
+
+def spike_site_name(robot_id: int) -> str:
+    return f"robot_{robot_id}_spike_site"
+
+
+def sensor_site_name(robot_id: int, sensor: str) -> str:
+    return f"robot_{robot_id}_{sensor}_sensor"
+
+
+def world_target_site_name(robot_id: int) -> str:
+    return f"robot_{robot_id}_world_attachment_target"
+
+
+def robot_target_site_name(source_id: int, target_id: int, link: str) -> str:
+    return f"robot_{source_id}_target_on_{target_id}_{link}"
+
+
+def world_equality_name(robot_id: int) -> str:
+    return f"robot_{robot_id}_attach_world"
+
+
+def robot_equality_name(source_id: int, target_id: int, link: str) -> str:
+    return f"robot_{source_id}_attach_{target_id}_{link}"
+
+
+@dataclass(frozen=True)
+class SceneRequest:
+    grid: RobotGrid
+    environment: str
+    task: TaskDefinition | None = None
+    physics_timestep_s: float = 0.002
+
+    def validate(self) -> None:
+        if self.environment not in {"flat", "gap", "step"}:
+            raise ValueError("environment must be flat, gap, or step")
+        if self.physics_timestep_s <= 0.0:
+            raise ValueError("physics timestep must be positive")
+        if self.task is not None and self.environment != self.task.environment:
+            raise ValueError("task and environment do not match")
+
+
+@dataclass(frozen=True)
+class BuiltScene:
+    xml: str
+    request: SceneRequest
+    spawn_positions_m: tuple[tuple[float, float, float], ...]
+    initial_centroid_x_m: float
+    target_x_m: float | None
+    gap_width_m: float | None
+    step_height_m: float | None
+    platform_width_m: float
+
+
+class SceneBuilder:
+    def __init__(
+        self,
+        request: SceneRequest,
+        robot: RobotSpecification = DEFAULT_ROBOT,
+    ):
+        request.validate()
+        robot.validate()
+        self.request = request
+        self.robot = robot
+        self.robot_count = request.grid.count
+
+    def build(self) -> BuiltScene:
+        platform_width = max(1.2, self.request.grid.columns * 0.125 + 0.50)
+        gap_width = self._gap_width()
+        step_height = self._step_height()
+        spawns = self._spawn_positions(gap_width, step_height)
+        centroid_x = sum(position[0] for position in spawns) / len(spawns)
+        target_x = (
+            centroid_x + self.request.task.value
+            if self.request.task is not None
+            and self.request.task.name is TaskName.COLLISION_AVOIDANCE
+            else None
+        )
+
+        root = ET.Element("mujoco", {"model": "bari_discrete_swarm"})
+        ET.SubElement(
+            root,
+            "compiler",
+            {"angle": "radian", "autolimits": "true", "balanceinertia": "true"},
+        )
+        ET.SubElement(
+            root,
+            "option",
+            {
+                "timestep": f"{self.request.physics_timestep_s:.10g}",
+                "gravity": "0 0 -9.81",
+                "integrator": "implicitfast",
+                "iterations": "80",
+                "cone": "elliptic",
+            },
+        )
+        ET.SubElement(
+            root,
+            "size",
+            {
+                "njmax": str(max(20_000, self.robot_count * self.robot_count * 30)),
+                "nconmax": str(max(5_000, self.robot_count * self.robot_count * 20)),
+            },
+        )
+        visual = ET.SubElement(root, "visual")
+        ET.SubElement(visual, "global", {"azimuth": "135", "elevation": "-30"})
+        ET.SubElement(visual, "map", {"force": "0.1", "stiffness": "80"})
+
+        world = ET.SubElement(root, "worldbody")
+        ET.SubElement(
+            world,
+            "light",
+            {"pos": "0 -2 3", "dir": "0 0.3 -1", "directional": "true"},
+        )
+        self._add_environment(
+            world,
+            gap_width=gap_width,
+            step_height=step_height,
+            platform_width=platform_width,
+            target_x=target_x,
+        )
+        for robot_id in range(self.robot_count):
+            ET.SubElement(
+                world,
+                "site",
+                {
+                    "name": world_target_site_name(robot_id),
+                    "pos": "0 0 0",
+                    "size": "0.001",
+                    "rgba": "0 0 0 0",
+                },
+            )
+
+        bodies: dict[tuple[int, str], ET.Element] = {}
+        for robot_id, position in enumerate(spawns):
+            self._add_robot(world, robot_id, position, bodies)
+
+        actuators = ET.SubElement(root, "actuator")
+        for robot_id in range(self.robot_count):
+            for hinge in ("rear", "front"):
+                ET.SubElement(
+                    actuators,
+                    "motor",
+                    {
+                        "name": actuator_name(robot_id, hinge),
+                        "joint": hinge_name(robot_id, hinge),
+                        "gear": "1",
+                        "ctrllimited": "true",
+                        "ctrlrange": _numbers(
+                            (-self.robot.joint_torque_nm, self.robot.joint_torque_nm)
+                        ),
+                    },
+                )
+
+        equality = ET.SubElement(root, "equality")
+        equality_common = {
+            "active": "false",
+            "solref": "0.01 1",
+            "solimp": "0.9 0.95 0.001",
+        }
+        for source_id in range(self.robot_count):
+            ET.SubElement(
+                equality,
+                "connect",
+                {
+                    "name": world_equality_name(source_id),
+                    "site1": spike_site_name(source_id),
+                    "site2": world_target_site_name(source_id),
+                    **equality_common,
+                },
+            )
+            for target_id in range(self.robot_count):
+                if target_id == source_id:
+                    continue
+                for link in LINK_NAMES:
+                    ET.SubElement(
+                        equality,
+                        "connect",
+                        {
+                            "name": robot_equality_name(source_id, target_id, link),
+                            "site1": spike_site_name(source_id),
+                            "site2": robot_target_site_name(source_id, target_id, link),
+                            **equality_common,
+                        },
+                    )
+
+        ET.indent(root, space="  ")
+        return BuiltScene(
+            xml=ET.tostring(root, encoding="unicode"),
+            request=self.request,
+            spawn_positions_m=tuple(spawns),
+            initial_centroid_x_m=centroid_x,
+            target_x_m=target_x,
+            gap_width_m=gap_width if self.request.environment == "gap" else None,
+            step_height_m=step_height if self.request.environment == "step" else None,
+            platform_width_m=platform_width,
+        )
+
+    def _gap_width(self) -> float:
+        if self.request.environment != "gap":
+            return 0.10
+        if self.request.task is not None:
+            return self.request.task.value
+        return 0.10
+
+    def _step_height(self) -> float:
+        if self.request.environment != "step":
+            return 0.03
+        if self.request.task is not None:
+            return self.request.task.value
+        return 0.03
+
+    def _spawn_positions(
+        self, gap_width: float, step_height: float
+    ) -> list[tuple[float, float, float]]:
+        del step_height
+        if self.request.environment == "gap":
+            lead_x = -gap_width / 2.0 - self.robot.length_m - 0.025
+            surface_z = 0.0
+        elif self.request.environment == "step":
+            lead_x = -self.robot.length_m - 0.025
+            surface_z = 0.0
+        elif self.request.task is not None:
+            lead_x = -0.50
+            surface_z = 0.0
+        else:
+            lead_x = 0.0
+            surface_z = 0.0
+        row_spacing = self.robot.length_m + 0.012
+        column_spacing = self.robot.width_m + 0.012
+        z = surface_z + self.robot.height_m / 2.0 + 0.002
+        positions: list[tuple[float, float, float]] = []
+        for row in range(self.request.grid.rows):
+            for column in range(self.request.grid.columns):
+                centered_column = column - (self.request.grid.columns - 1) / 2.0
+                positions.append(
+                    (lead_x - row * row_spacing, centered_column * column_spacing, z)
+                )
+        return positions
+
+    def _add_environment(
+        self,
+        world: ET.Element,
+        *,
+        gap_width: float,
+        step_height: float,
+        platform_width: float,
+        target_x: float | None,
+    ) -> None:
+        common = {
+            "friction": "1.1 0.005 0.0001",
+            "condim": "4",
+            "rgba": "0.40 0.44 0.48 1",
+            "group": "0",
+        }
+        if self.request.environment == "gap":
+            half_length = 6.0
+            thickness = 0.05
+            for side, center_x in (
+                ("near", -gap_width / 2.0 - half_length),
+                ("far", gap_width / 2.0 + half_length),
+            ):
+                ET.SubElement(
+                    world,
+                    "geom",
+                    {
+                        "name": f"environment_gap_{side}",
+                        "type": "box",
+                        "pos": _numbers((center_x, 0.0, -thickness / 2.0)),
+                        "size": _numbers(
+                            (half_length, platform_width / 2.0, thickness / 2.0)
+                        ),
+                        **common,
+                    },
+                )
+        else:
+            ET.SubElement(
+                world,
+                "geom",
+                {
+                    "name": "environment_ground",
+                    "type": "plane",
+                    "pos": "0 0 0",
+                    "size": "12 3 0.05",
+                    **common,
+                },
+            )
+        if self.request.environment == "step":
+            length = 6.0
+            ET.SubElement(
+                world,
+                "geom",
+                {
+                    "name": "environment_step",
+                    "type": "box",
+                    "pos": _numbers((length / 2.0, 0.0, step_height / 2.0)),
+                    "size": _numbers(
+                        (length / 2.0, platform_width / 2.0, step_height / 2.0)
+                    ),
+                    **common,
+                },
+            )
+        if target_x is not None:
+            ET.SubElement(
+                world,
+                "site",
+                {
+                    "name": "collision_avoidance_target",
+                    "type": "cylinder",
+                    "pos": _numbers((target_x, 0.0, 0.002)),
+                    "size": "0.25 0.002",
+                    "rgba": "0.15 0.85 0.25 0.65",
+                },
+            )
+
+    def _add_robot(
+        self,
+        world: ET.Element,
+        robot_id: int,
+        position: tuple[float, float, float],
+        bodies: dict[tuple[int, str], ET.Element],
+    ) -> None:
+        rear_length, middle_length, front_length = self.robot.segment_lengths_m
+        masses = self.robot.segment_masses_kg
+        color = ROBOT_COLORS[robot_id % len(ROBOT_COLORS)]
+        rear = ET.SubElement(
+            world,
+            "body",
+            {"name": body_name(robot_id, "rear"), "pos": _numbers(position)},
+        )
+        bodies[(robot_id, "rear")] = rear
+        ET.SubElement(rear, "freejoint", {"name": f"robot_{robot_id}_root"})
+        self._add_link(rear, robot_id, "rear", rear_length, masses[0], 0.0, color)
+        ET.SubElement(
+            rear,
+            "site",
+            {
+                "name": spike_site_name(robot_id),
+                "pos": _numbers((-rear_length / 2.0, 0.0, -self.robot.height_m / 2.0)),
+                "size": "0.001",
+                "rgba": "0 0 0 0",
+            },
+        )
+
+        middle = ET.SubElement(
+            rear,
+            "body",
+            {
+                "name": body_name(robot_id, "middle"),
+                "pos": _numbers((rear_length / 2.0, 0.0, 0.0)),
+            },
+        )
+        bodies[(robot_id, "middle")] = middle
+        self._add_hinge(middle, robot_id, "rear")
+        self._add_link(
+            middle,
+            robot_id,
+            "middle",
+            middle_length,
+            masses[1],
+            middle_length / 2.0,
+            color,
+        )
+        station_x = middle_length + front_length - self.robot.front_sensor_offset_m
+        sensor_positions = {
+            "down": (station_x, 0.0, -self.robot.height_m / 2.0),
+            "left": (station_x, self.robot.width_m / 2.0, 0.0),
+            "right": (station_x, -self.robot.width_m / 2.0, 0.0),
+        }
+        for sensor, sensor_position in sensor_positions.items():
+            ET.SubElement(
+                middle,
+                "site",
+                {
+                    "name": sensor_site_name(robot_id, sensor),
+                    "pos": _numbers(sensor_position),
+                    "size": "0.001",
+                    "rgba": "0 0 0 0",
+                },
+            )
+
+        front = ET.SubElement(
+            middle,
+            "body",
+            {
+                "name": body_name(robot_id, "front"),
+                "pos": _numbers((middle_length, 0.0, 0.0)),
+            },
+        )
+        bodies[(robot_id, "front")] = front
+        self._add_hinge(front, robot_id, "front")
+        self._add_link(
+            front,
+            robot_id,
+            "front",
+            front_length,
+            masses[2],
+            front_length / 2.0,
+            color,
+        )
+        ET.SubElement(
+            front,
+            "site",
+            {
+                "name": sensor_site_name(robot_id, "front"),
+                "pos": _numbers((front_length, 0.0, 0.0)),
+                "size": "0.001",
+                "rgba": "0 0 0 0",
+            },
+        )
+
+        for target_id in range(self.robot_count):
+            if target_id == robot_id:
+                continue
+            for link in LINK_NAMES:
+                body = bodies[(robot_id, link)]
+                ET.SubElement(
+                    body,
+                    "site",
+                    {
+                        "name": robot_target_site_name(target_id, robot_id, link),
+                        "pos": "0 0 0",
+                        "size": "0.001",
+                        "rgba": "0 0 0 0",
+                    },
+                )
+
+    def _add_hinge(self, body: ET.Element, robot_id: int, hinge: str) -> None:
+        limit = self.robot.hinge_limit_rad
+        ET.SubElement(
+            body,
+            "joint",
+            {
+                "name": hinge_name(robot_id, hinge),
+                "type": "hinge",
+                "axis": "0 1 0",
+                "range": _numbers((-limit, limit)),
+                "damping": "0.004",
+                "armature": "0.000001",
+            },
+        )
+
+    def _add_link(
+        self,
+        body: ET.Element,
+        robot_id: int,
+        link: str,
+        length: float,
+        mass: float,
+        center_x: float,
+        color: tuple[float, float, float, float],
+    ) -> None:
+        width = self.robot.width_m
+        height = self.robot.height_m
+        inertia = (
+            mass * (width**2 + height**2) / 12.0,
+            mass * (length**2 + height**2) / 12.0,
+            mass * (length**2 + width**2) / 12.0,
+        )
+        ET.SubElement(
+            body,
+            "inertial",
+            {
+                "pos": _numbers((center_x, 0.0, 0.0)),
+                "mass": f"{mass:.10g}",
+                "diaginertia": _numbers(inertia),
+            },
+        )
+        ET.SubElement(
+            body,
+            "geom",
+            {
+                "name": geom_name(robot_id, link),
+                "type": "box",
+                "pos": _numbers((center_x, 0.0, 0.0)),
+                "size": _numbers((length / 2.0, width / 2.0, height / 2.0)),
+                "mass": "0",
+                "friction": "1.1 0.005 0.0001",
+                "condim": "4",
+                "solref": "0.015 1",
+                "solimp": "0.9 0.95 0.001",
+                "rgba": _numbers(color),
+                "group": "3",
+            },
+        )
