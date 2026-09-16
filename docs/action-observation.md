@@ -22,6 +22,7 @@ a = (a_motion, a_lift, a_grip)
 W에서는 앞쪽 cleat, S에서는 뒤쪽 cleat가 바닥 또는 아래 로봇 상판에 물리 latch되어 교대로 접지합니다.
 W와 S를 번갈아 선택하면 이 교대 접지와 관절 운동으로 +x 전방 이동이 발생합니다.
 명시적으로 `ATTACH`를 유지하면 기존 뒤쪽 spike attachment가 우선하며, 자동 cleat latch는 비활성화됩니다.
+Manual 화면의 strain 라벨은 마지막 latch 위치에 계속 남으며, 해제 뒤에는 `0.0 g`로 갱신됩니다.
 
 ### `a_lift`
 

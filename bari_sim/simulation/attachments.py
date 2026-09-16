@@ -79,6 +79,9 @@ class AttachmentManager:
         }
         self._active: dict[int, Attachment] = {}
         self._last_strain_g = np.zeros(robot_count, dtype=np.float64)
+        self._last_label_positions: list[np.ndarray | None] = [
+            None for _ in range(robot_count)
+        ]
         self._detached_by_other = np.zeros(robot_count, dtype=np.bool_)
         self._events: list[AttachmentEvent] = []
         self._all_equality_ids = tuple(range(model.neq))
@@ -145,6 +148,9 @@ class AttachmentManager:
         )
         self._last_strain_g[robot_id] = 0.0
         mujoco.mj_forward(self.model, self.data)
+        self._last_label_positions[robot_id] = np.asarray(
+            self.data.site_xpos[source_site_id]
+        ).copy()
         self._events.append(AttachmentEvent("attached", robot_id, target_robot_id, 0.0))
         return True
 
@@ -152,6 +158,9 @@ class AttachmentManager:
         attachment = self._active.pop(robot_id, None)
         if attachment is None:
             return False
+        self._last_label_positions[robot_id] = np.asarray(
+            self.data.site_xpos[attachment.source_site_id]
+        ).copy()
         self.data.eq_active[attachment.equality_id] = 0
         self.model.site_pos[attachment.source_site_id] = self._default_spike_positions[
             robot_id
@@ -188,6 +197,9 @@ class AttachmentManager:
             attachment.force_n = force_n
             strain_g = force_n / GRAVITY_M_S2 * 1000.0
             self._last_strain_g[robot_id] = min(strain_g, self.robot.maximum_strain_g)
+            self._last_label_positions[robot_id] = np.asarray(
+                self.data.site_xpos[attachment.source_site_id]
+            ).copy()
             if force_n > self.robot.maximum_attachment_force_n:
                 caused_by_other = (
                     attachment.target_robot_id is not None
@@ -217,14 +229,20 @@ class AttachmentManager:
         return robot_id in self._active or self._find_candidate(robot_id) is not None
 
     def active_labels(self) -> tuple[tuple[np.ndarray, float], ...]:
-        """Return world positions and strain values for active attachments."""
+        """Return persistent strain labels, including the last latch point."""
 
         return tuple(
             (
-                np.asarray(self.data.site_xpos[attachment.source_site_id]).copy(),
+                (
+                    np.asarray(
+                        self.data.site_xpos[self.spike_site_ids[robot_id]]
+                    ).copy()
+                    if self._last_label_positions[robot_id] is None
+                    else self._last_label_positions[robot_id].copy()
+                ),
                 float(self._last_strain_g[robot_id]),
             )
-            for robot_id, attachment in self._active.items()
+            for robot_id in range(self.robot_count)
         )
 
     def is_attaching(self, robot_id: int) -> bool:
@@ -254,6 +272,7 @@ class AttachmentManager:
             self.model.site_pos[site_id] = self._default_spike_positions[robot_id]
         self._active.clear()
         self._last_strain_g[:] = 0.0
+        self._last_label_positions = [None for _ in range(self.robot_count)]
         self._detached_by_other[:] = False
         self._events.clear()
 
