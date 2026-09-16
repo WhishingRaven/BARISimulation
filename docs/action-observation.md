@@ -18,7 +18,10 @@ a = (a_motion, a_lift, a_grip)
 | `TURN_RIGHT` | D | 본체 전체를 시계 방향으로 8° 회전 |
 | `STOP` | C | 현재 rear 관절 자세 유지 |
 
-현재 `W_n`의 curl 강도 선택지는 구현하지 않고 하나의 `CURL_BODY`만 제공합니다. W와 S를 번갈아 선택하면 접촉 마찰로 +x 전방 이동이 발생합니다.
+현재 `W_n`의 curl 강도 선택지는 구현하지 않고 하나의 `CURL_BODY`만 제공합니다.
+W에서는 앞쪽 cleat, S에서는 뒤쪽 cleat가 바닥 또는 아래 로봇 상판에 물리 latch되어 교대로 접지합니다.
+W와 S를 번갈아 선택하면 이 교대 접지와 관절 운동으로 +x 전방 이동이 발생합니다.
+명시적으로 `ATTACH`를 유지하면 기존 뒤쪽 spike attachment가 우선하며, 자동 cleat latch는 비활성화됩니다.
 
 ### `a_lift`
 

@@ -10,11 +10,12 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from ..robot.actions import LiftAction, MotionAction, RobotAction
+from ..robot.actions import GripAction, LiftAction, MotionAction, RobotAction
 from ..robot.observation import RobotObservation
 from ..robot.specification import DEFAULT_ROBOT, RobotSpecification
 from ..tasks.evaluation import TaskEvaluator, TaskResult
 from .attachments import AttachmentEvent, AttachmentManager
+from .gait_anchors import GaitAnchorSystem
 from .scene import (
     BuiltScene,
     SceneBuilder,
@@ -89,6 +90,9 @@ class Simulation:
         self.attachments = AttachmentManager(
             self.model, self.data, self.robot_count, robot
         )
+        self.gait_anchors = GaitAnchorSystem(
+            self.model, self.data, self.robot_count, robot
+        )
         self.sensors = SensorSystem(
             self.model, self.data, self.robot_count, self.attachments, robot
         )
@@ -140,6 +144,13 @@ class Simulation:
         mujoco.mj_forward(self.model, self.data)
         for robot_id in range(self.robot_count):
             action = actions[robot_id]
+            gait_motion = (
+                MotionAction.STOP
+                if action.grip is GripAction.ATTACH
+                or self.attachments.is_attaching(robot_id)
+                else action.motion
+            )
+            self.gait_anchors.apply_motion(robot_id, gait_motion)
             self.attachments.apply_command(robot_id, action.grip)
             self._last_actions[robot_id] = action
 
@@ -257,6 +268,7 @@ class Simulation:
     def reset(self) -> Mapping[int, RobotObservation]:
         mujoco.mj_resetData(self.model, self.data)
         self.attachments.reset()
+        self.gait_anchors.reset()
         self._desired_targets[:] = 0.0
         self._limited_targets[:] = 0.0
         self._last_actions = {

@@ -3,6 +3,7 @@ from __future__ import annotations
 from math import atan2, pi
 
 import mujoco
+import numpy as np
 import pytest
 
 from bari_sim.robot import GripAction, LiftAction, MotionAction, RobotAction
@@ -41,6 +42,39 @@ def test_curl_flatten_cycle_moves_forward_from_contact_friction() -> None:
         simulation.step({0: RobotAction(MotionAction.FLATTEN_BODY)})
     final_x = float(simulation.data.xpos[simulation.root_body_ids[0], 0])
     assert final_x - initial_x > 0.0
+
+
+def test_alternating_cleats_limit_reverse_slip_during_wsws() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    positions: list[float] = []
+
+    def capture_frame(current: Simulation) -> bool:
+        positions.append(float(current.data.xpos[current.root_body_ids[0], 0]))
+        return True
+
+    for motion in (MotionAction.CURL_BODY, MotionAction.FLATTEN_BODY) * 4:
+        simulation.step({0: RobotAction(motion)}, frame_callback=capture_frame)
+    deltas = np.diff(positions)
+    assert positions[-1] - positions[0] > 0.05
+    assert float(deltas[deltas < 0.0].sum()) > -0.002
+
+
+def test_gait_cleat_on_a_robot_latches_to_that_robot_not_world() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 2), "flat"))
+    lower_address = int(simulation.model.jnt_qposadr[simulation.root_joint_ids[0]])
+    upper_address = int(simulation.model.jnt_qposadr[simulation.root_joint_ids[1]])
+    simulation.data.qpos[upper_address : upper_address + 3] = simulation.data.qpos[
+        lower_address : lower_address + 3
+    ]
+    simulation.data.qpos[upper_address + 2] = 0.012
+    mujoco.mj_forward(simulation.model, simulation.data)
+
+    simulation.step({0: RobotAction(), 1: RobotAction(MotionAction.CURL_BODY)})
+
+    world_latch = simulation.model.equality("robot_1_gait_front_latch").id
+    lower_front_latch = simulation.model.equality("robot_1_gait_front_on_0_front").id
+    assert not simulation.data.eq_active[world_latch]
+    assert simulation.data.eq_active[lower_front_latch]
 
 
 def test_repeating_an_already_reached_posture_does_not_creep() -> None:

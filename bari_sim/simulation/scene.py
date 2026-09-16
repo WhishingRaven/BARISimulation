@@ -43,6 +43,24 @@ def spike_site_name(robot_id: int) -> str:
     return f"robot_{robot_id}_spike_site"
 
 
+def gait_anchor_site_name(robot_id: int, anchor: str) -> str:
+    return f"robot_{robot_id}_gait_{anchor}_anchor"
+
+
+def gait_target_site_name(robot_id: int, anchor: str) -> str:
+    return f"robot_{robot_id}_gait_{anchor}_target"
+
+
+def gait_equality_name(robot_id: int, anchor: str) -> str:
+    return f"robot_{robot_id}_gait_{anchor}_latch"
+
+
+def gait_robot_equality_name(
+    source_id: int, anchor: str, target_id: int, link: str
+) -> str:
+    return f"robot_{source_id}_gait_{anchor}_on_{target_id}_{link}"
+
+
 def sensor_site_name(robot_id: int, sensor: str) -> str:
     return f"robot_{robot_id}_{sensor}_sensor"
 
@@ -169,6 +187,17 @@ class SceneBuilder:
                     "rgba": "0 0 0 0",
                 },
             )
+            for anchor in ("rear", "front"):
+                ET.SubElement(
+                    world,
+                    "site",
+                    {
+                        "name": gait_target_site_name(robot_id, anchor),
+                        "pos": "0 0 0",
+                        "size": "0.001",
+                        "rgba": "0 0 0 0",
+                    },
+                )
 
         bodies: dict[tuple[int, str], ET.Element] = {}
         for robot_id, position in enumerate(spawns):
@@ -198,6 +227,39 @@ class SceneBuilder:
             "solimp": "0.9 0.95 0.001",
         }
         for source_id in range(self.robot_count):
+            for anchor in ("rear", "front"):
+                ET.SubElement(
+                    equality,
+                    "connect",
+                    {
+                        "name": gait_equality_name(source_id, anchor),
+                        "site1": gait_anchor_site_name(source_id, anchor),
+                        "site2": gait_target_site_name(source_id, anchor),
+                        **equality_common,
+                        "solref": "0.001 1",
+                        "solimp": "0.99 0.999 0.00001",
+                    },
+                )
+                for target_id in range(self.robot_count):
+                    if target_id == source_id:
+                        continue
+                    for link in LINK_NAMES:
+                        ET.SubElement(
+                            equality,
+                            "connect",
+                            {
+                                "name": gait_robot_equality_name(
+                                    source_id, anchor, target_id, link
+                                ),
+                                "site1": gait_anchor_site_name(source_id, anchor),
+                                "site2": robot_target_site_name(
+                                    source_id, target_id, link
+                                ),
+                                **equality_common,
+                                "solref": "0.001 1",
+                                "solimp": "0.99 0.999 0.00001",
+                            },
+                        )
             ET.SubElement(
                 equality,
                 "connect",
@@ -453,6 +515,7 @@ class SceneBuilder:
                 "rgba": "0 0 0 0",
             },
         )
+        self._add_gait_anchor(rear, robot_id, "rear", -rear_length / 2.0)
 
         middle = ET.SubElement(
             rear,
@@ -520,6 +583,7 @@ class SceneBuilder:
                 "rgba": "0 0 0 0",
             },
         )
+        self._add_gait_anchor(front, robot_id, "front", front_length)
 
         for target_id in range(self.robot_count):
             if target_id == robot_id:
@@ -547,6 +611,41 @@ class SceneBuilder:
                         "rgba": "0 0 0 0",
                     },
                 )
+
+    def _add_gait_anchor(
+        self, body: ET.Element, robot_id: int, anchor: str, x: float
+    ) -> None:
+        """Add a small, physical cleat at each end of the inchworm body."""
+
+        height = self.robot.height_m
+        width = self.robot.width_m
+        ET.SubElement(
+            body,
+            "geom",
+            {
+                "name": f"robot_{robot_id}_gait_{anchor}_cleat",
+                "type": "box",
+                "pos": _numbers((x, 0.0, -height / 2.0 - 0.0005)),
+                "size": _numbers((0.0015, width / 2.0, 0.0005)),
+                "mass": "0",
+                "friction": "3.0 0.005 0.0001",
+                "condim": "4",
+                "contype": "0",
+                "conaffinity": "0",
+                "rgba": "0.16 0.16 0.18 1",
+                "group": "1",
+            },
+        )
+        ET.SubElement(
+            body,
+            "site",
+            {
+                "name": gait_anchor_site_name(robot_id, anchor),
+                "pos": _numbers((x, 0.0, -height / 2.0 - 0.001)),
+                "size": "0.001",
+                "rgba": "0 0 0 0",
+            },
+        )
 
     def _add_hinge(self, body: ET.Element, robot_id: int, hinge: str) -> None:
         limit = self.robot.hinge_limit_rad
@@ -606,7 +705,7 @@ class SceneBuilder:
             "type": "box",
             "pos": _numbers((center_x, 0.0, 0.0)),
             "mass": "0",
-            "friction": "1.1 0.005 0.0001",
+            "friction": "2.0 0.005 0.0001",
             "condim": "4",
             "solref": "0.015 1",
             "solimp": "0.9 0.95 0.001",

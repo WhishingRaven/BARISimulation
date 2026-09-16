@@ -67,6 +67,17 @@ def test_manual_labels_include_strain_at_active_attachment() -> None:
     assert viewer.user_scn.geoms[1].label.endswith(" g")
 
 
+def test_manual_strain_label_persists_after_attachment_releases() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    simulation.step({0: RobotAction(grip=GripAction.ATTACH)})
+    simulation.step({0: RobotAction(grip=GripAction.DETACH)})
+    viewer = type("Viewer", (), {})()
+    viewer.user_scn = mujoco.MjvScene(simulation.model, 4)
+    _sync_robot_labels(viewer, simulation)
+    assert viewer.user_scn.ngeom == 2
+    assert viewer.user_scn.geoms[1].label == "strain: 0.0 g"
+
+
 def test_help_command_and_required_command_shapes(capsys) -> None:
     assert main(["help"]) == 0
     assert "collision-avoidance" in capsys.readouterr().out

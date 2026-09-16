@@ -22,6 +22,15 @@ rear edge                                                    front edge
 - 질량은 세 segment 길이에 비례해 분배되고 합계는 항상 0.05 kg입니다.
 - 조향용 형상이나 yaw 관절은 추가하지 않습니다. `TURN_LEFT/RIGHT`는 한 discrete action 동안 자유 본체 전체의 yaw를 8° 바꾸는 조정된 동작입니다.
 
+## 교대 접지 cleat
+
+앞·뒤 끝에는 폭 전체를 덮는 낮은 cleat가 하나씩 있습니다. `CURL_BODY`에서는
+앞 cleat, `FLATTEN_BODY`에서는 뒤 cleat가 현재 바닥 또는 아래 로봇의 상판
+접지점에 latch되어 몸통의 힌지 운동을 반대쪽 끝의 전진으로 바꿉니다. latch는 MuJoCo의 site-to-site
+`connect` constraint로 표현하며, 로봇의 free-joint 위치나 속도를 직접 보정하지
+않습니다. 다른 로봇 상판을 잡으면 constraint의 반작용 힘은 해당 아래 로봇의
+link body에 전달됩니다. 따라서 남는 미세한 solver compliance는 실제 물리 결과로 유지됩니다.
+
 ## 뒤쪽 가시
 
 - 위치: 로봇 뒤쪽 끝의 밑면, 폭 0.10 m 전체에 걸친 한 줄
