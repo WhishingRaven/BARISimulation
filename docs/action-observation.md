@@ -34,7 +34,7 @@ a = (a_motion, a_lift, a_grip)
 | `ATTACH` | Space | 뒤쪽 가시 접촉에 attachment 요청/유지 |
 | `DETACH` | X | attachment 해제; 미부착 기본 출력 |
 
-Policy는 세 component를 매 step 다시 출력합니다. Manual 입력은 키를 한 번 누르면 해당 component가 이후 step에도 유지됩니다.
+Policy는 세 component를 매 step 다시 출력합니다. Manual의 W/S/A/D는 키를 누르는 동안만 반복 출력되고, 키를 놓으면 현재 0.5초 step 뒤 정지합니다. lift와 grip component는 다음 입력까지 유지됩니다.
 
 ## Observation
 

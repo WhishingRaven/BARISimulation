@@ -166,7 +166,7 @@ def _add_grid(parser: argparse.ArgumentParser, default: str | None = None) -> No
         default=None if default is None else parse_robot_grid(default),
         metavar="M*N",
         help=(
-            "robot formation as rows*columns"
+            "robot formation as rows*columns; quote it in zsh, e.g. '2*5'"
             + (f" (default: {default})" if default is not None else "")
         ),
     )

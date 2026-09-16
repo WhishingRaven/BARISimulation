@@ -12,7 +12,7 @@ barisimulation help evaluate
 ## Train
 
 ```bash
-barisimulation train --robots 2*5 --task collision-avoidance --difficulty 1
+barisimulation train --robots '2*5' --task collision-avoidance --difficulty 1
 ```
 
 명시적으로 이 명령을 실행할 때만 policy search가 시작됩니다. 기본 모델 경로는 `models/<task>.json`입니다. 구현된 trainer는 선언된 local observation만 사용하는 공유 linear policy를 cross-entropy method로 탐색합니다.
@@ -21,7 +21,7 @@ barisimulation train --robots 2*5 --task collision-avoidance --difficulty 1
 
 ```bash
 barisimulation train \
-  --robots 4*5 \
+  --robots '4*5' \
   --task gap \
   --difficulty 4 \
   --generations 20 \
@@ -35,7 +35,7 @@ barisimulation train \
 
 ```bash
 barisimulation infer \
-  --robots 4*5 \
+  --robots '4*5' \
   --model models/gap-d4.json \
   --task gap \
   --viewer
@@ -46,14 +46,14 @@ barisimulation infer \
 ## Evaluate
 
 ```bash
-barisimulation evaluate --robots 4*5 --task gap --difficulty 4
+barisimulation evaluate --robots '4*5' --task gap --difficulty 4
 ```
 
 `--model`이 없으면 `models/gap.json`을 읽습니다. 다른 파일은 다음처럼 지정합니다.
 
 ```bash
 barisimulation evaluate \
-  --robots 4*5 \
+  --robots '4*5' \
   --task gap \
   --difficulty 4 \
   --model models/gap-d4.json \

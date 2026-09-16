@@ -16,6 +16,7 @@ ROBOT_COLORS = (
     (0.72, 0.36, 0.88, 1.0),
     (0.95, 0.74, 0.14, 1.0),
 )
+SEGMENT_BRIGHTNESS = {"rear": 0.78, "middle": 1.0, "front": 1.18}
 
 
 def _numbers(values: tuple[float, ...]) -> str:
@@ -368,7 +369,15 @@ class SceneBuilder:
         )
         bodies[(robot_id, "rear")] = rear
         ET.SubElement(rear, "freejoint", {"name": f"robot_{robot_id}_root"})
-        self._add_link(rear, robot_id, "rear", rear_length, masses[0], 0.0, color)
+        self._add_link(
+            rear,
+            robot_id,
+            "rear",
+            rear_length,
+            masses[0],
+            0.0,
+            self._segment_color(color, "rear"),
+        )
         ET.SubElement(
             rear,
             "site",
@@ -397,7 +406,7 @@ class SceneBuilder:
             middle_length,
             masses[1],
             middle_length / 2.0,
-            color,
+            self._segment_color(color, "middle"),
         )
         station_x = middle_length + front_length - self.robot.front_sensor_offset_m
         sensor_positions = {
@@ -434,7 +443,7 @@ class SceneBuilder:
             front_length,
             masses[2],
             front_length / 2.0,
-            color,
+            self._segment_color(color, "front"),
         )
         ET.SubElement(
             front,
@@ -452,12 +461,23 @@ class SceneBuilder:
                 continue
             for link in LINK_NAMES:
                 body = bodies[(robot_id, link)]
+                link_center_x = (
+                    0.0
+                    if link == "rear"
+                    else (
+                        middle_length / 2.0 if link == "middle" else front_length / 2.0
+                    )
+                )
                 ET.SubElement(
                     body,
                     "site",
                     {
                         "name": robot_target_site_name(target_id, robot_id, link),
-                        "pos": "0 0 0",
+                        # Attachment targets are on the top surface, so a
+                        # rear spike can latch onto a robot from below.
+                        "pos": _numbers(
+                            (link_center_x, 0.0, self.robot.height_m / 2.0)
+                        ),
                         "size": "0.001",
                         "rgba": "0 0 0 0",
                     },
@@ -476,6 +496,18 @@ class SceneBuilder:
                 "damping": "0.004",
                 "armature": "0.000001",
             },
+        )
+
+    @staticmethod
+    def _segment_color(
+        color: tuple[float, float, float, float], link: str
+    ) -> tuple[float, float, float, float]:
+        brightness = SEGMENT_BRIGHTNESS[link]
+        return (
+            min(color[0] * brightness, 1.0),
+            min(color[1] * brightness, 1.0),
+            min(color[2] * brightness, 1.0),
+            color[3],
         )
 
     def _add_link(
@@ -518,6 +550,9 @@ class SceneBuilder:
                 "solref": "0.015 1",
                 "solimp": "0.9 0.95 0.001",
                 "rgba": _numbers(color),
-                "group": "3",
+                # MuJoCo hides geom groups 3-5 by default.  Keep the robots in
+                # their own, visible group so every viewer shows them without
+                # requiring a manual visibility toggle.
+                "group": "1",
             },
         )

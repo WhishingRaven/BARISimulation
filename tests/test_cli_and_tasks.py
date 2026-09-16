@@ -4,7 +4,7 @@ import mujoco
 import pytest
 
 from bari_sim.cli import build_parser, main
-from bari_sim.simulation import SceneBuilder, SceneRequest
+from bari_sim.simulation import SceneBuilder, SceneRequest, Simulation
 from bari_sim.tasks import (
     DIFFICULTY_VALUES,
     RobotGrid,
@@ -12,7 +12,12 @@ from bari_sim.tasks import (
     parse_robot_grid,
     task_definition,
 )
-from bari_sim.workflows.manual import ManualController
+from bari_sim.workflows.manual import (
+    ManualController,
+    ManualShortcutDefaults,
+    manual_camera_pose,
+    manual_overlay_text,
+)
 
 
 def test_robot_grid_parser() -> None:
@@ -42,6 +47,7 @@ def test_all_task_difficulties_build_valid_scenes() -> None:
 def test_help_command_and_required_command_shapes(capsys) -> None:
     assert main(["help"]) == 0
     assert "collision-avoidance" in capsys.readouterr().out
+    assert "quote it in zsh" in build_parser()._bari_subparsers["manual"].format_help()
     parser = build_parser()
     manual = parser.parse_args(["manual", "--robots", "1*1", "--environment", "flat"])
     assert manual.robots == RobotGrid(1, 1)
@@ -61,14 +67,62 @@ def test_help_command_and_required_command_shapes(capsys) -> None:
 
 def test_manual_actions_latch_independently() -> None:
     controller = ManualController(2)
-    controller.handle_key("w")
     controller.handle_key("r")
+    assert controller.actions()[0].motion.name == "STOP"
     controller.handle_key(" ")
+    assert controller.take_pending_actions() is not None
+    controller.handle_key("w")
     action = controller.actions()[0]
     assert action.motion.name == "CURL_BODY"
     assert action.lift.name == "LIFT_FRONT"
     assert action.grip.name == "ATTACH"
     assert controller.actions()[1].grip.name == "DETACH"
+    assert controller.take_pending_actions()[0].motion.name == "CURL_BODY"
+    assert controller.take_pending_actions() is None
+    controller.refresh_held_motion({"W"})
+    assert controller.take_pending_actions()[0].motion.name == "CURL_BODY"
+    controller.refresh_held_motion(set())
+    assert controller.take_halt_request()
+    assert controller.take_pending_actions() is None
     controller.handle_key("n")
     controller.handle_key("d")
     assert controller.actions()[1].motion.name == "TURN_RIGHT"
+    controller.handle_key("x")
+    assert controller.actions()[1].motion.name == "STOP"
+
+
+def test_manual_overlay_shows_controls_and_active_action() -> None:
+    controller = ManualController(1)
+    controller.handle_key("w")
+    controls, status = manual_overlay_text(controller)
+    assert "Hold W/S" in controls
+    assert "● CURL_BODY" in status
+    assert "ROBOT 1" in status
+
+
+def test_manual_camera_tightly_frames_one_robot_and_scales_with_formation() -> None:
+    single = manual_camera_pose(Simulation(SceneRequest(RobotGrid(1, 1), "flat")))
+    swarm = manual_camera_pose(Simulation(SceneRequest(RobotGrid(6, 5), "flat")))
+    assert single.lookat == pytest.approx((0.045, 0.0, 0.005))
+    assert single.distance == pytest.approx(0.28)
+    assert single.azimuth == 90.0
+    assert single.elevation == -65.0
+    assert swarm.distance > single.distance
+    assert swarm.distance < 1.6
+
+
+def test_robot_shortcuts_override_native_visualization_shortcuts() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+
+    class Viewer:
+        opt = mujoco.MjvOption()
+        user_scn = mujoco.MjvScene(simulation.model, 100)
+
+    viewer = Viewer()
+    defaults = ManualShortcutDefaults.capture(viewer)
+    viewer.opt.geomgroup[:] = 0
+    viewer.opt.flags[:] = 1 - viewer.opt.flags
+    viewer.user_scn.flags[:] = 1 - viewer.user_scn.flags
+    defaults.restore(viewer)
+    assert tuple(int(value) for value in viewer.opt.geomgroup) == defaults.geom_groups
+    assert ManualShortcutDefaults.capture(viewer) == defaults

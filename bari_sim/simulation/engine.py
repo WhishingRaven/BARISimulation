@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -123,6 +123,7 @@ class Simulation:
         frame_callback: FrameCallback | None = None,
         realtime: bool = False,
         render_hz: float = 60.0,
+        lock_root_motion: Collection[int] | None = None,
     ) -> StepResult:
         self._validate_actions(actions)
         self.attachments.begin_control_step()
@@ -136,6 +137,18 @@ class Simulation:
             self._last_actions[robot_id] = action
 
         collision_pairs: set[tuple[int, int]] = set()
+        locked_roots = tuple(lock_root_motion or ())
+        locked_poses = {
+            robot_id: (
+                self.data.qpos[
+                    int(self.model.jnt_qposadr[self.root_joint_ids[robot_id]]) :
+                ][:7].copy(),
+                self.data.qvel[
+                    int(self.model.jnt_dofadr[self.root_joint_ids[robot_id]]) :
+                ][:6].copy(),
+            )
+            for robot_id in locked_roots
+        }
         callback_stride = max(1, round(1.0 / (render_hz * self.timestep_s)))
         wall_start = time.monotonic()
         for executed_steps, physics_index in enumerate(
@@ -148,6 +161,15 @@ class Simulation:
                 for robot_id, force in external_forces_n.items():
                     self.data.xfrc_applied[self.root_body_ids[robot_id], :3] = force
             mujoco.mj_step(self.model, self.data)
+            for robot_id, (qpos, qvel) in locked_poses.items():
+                qpos_address = int(
+                    self.model.jnt_qposadr[self.root_joint_ids[robot_id]]
+                )
+                dof_address = int(self.model.jnt_dofadr[self.root_joint_ids[robot_id]])
+                self.data.qpos[qpos_address : qpos_address + 7] = qpos
+                self.data.qvel[dof_address : dof_address + 6] = qvel
+            if locked_poses:
+                mujoco.mj_forward(self.model, self.data)
             self.attachments.post_physics_step()
             collision_pairs.update(self._robot_collision_pairs())
             if frame_callback is not None and (
@@ -219,19 +241,39 @@ class Simulation:
             )
         return self.observations()
 
+    def halt_motion(self) -> None:
+        """Freeze the current pose at a manual-control action boundary."""
+
+        self.data.qvel[:] = 0.0
+        self.data.ctrl[:] = 0.0
+        for robot_id in range(self.robot_count):
+            for hinge_index in range(2):
+                position = self._joint_position(robot_id, hinge_index)
+                self._desired_targets[robot_id, hinge_index] = position
+                self._limited_targets[robot_id, hinge_index] = position
+        mujoco.mj_forward(self.model, self.data)
+
     def export_model(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.scene.xml, encoding="utf-8")
 
     def _set_action(self, robot_id: int, action: RobotAction) -> None:
-        if action.motion is MotionAction.CURL_BODY:
+        # A latched rear spike is a physical anchor.  Motion commands may
+        # still update the requested flap state, but must not drive the body
+        # away from its attachment point.
+        motion = (
+            MotionAction.STOP
+            if self.attachments.is_attaching(robot_id)
+            else action.motion
+        )
+        if motion is MotionAction.CURL_BODY:
             self._desired_targets[robot_id, 0] = self.robot.curl_angle_rad
-        elif action.motion is MotionAction.FLATTEN_BODY:
+        elif motion is MotionAction.FLATTEN_BODY:
             self._desired_targets[robot_id, 0] = 0.0
-        elif action.motion is MotionAction.STOP:
+        elif motion is MotionAction.STOP:
             self._desired_targets[robot_id, 0] = self._joint_position(robot_id, 0)
-        if action.motion in {MotionAction.TURN_LEFT, MotionAction.TURN_RIGHT}:
-            direction = 1.0 if action.motion is MotionAction.TURN_LEFT else -1.0
+        if motion in {MotionAction.TURN_LEFT, MotionAction.TURN_RIGHT}:
+            direction = 1.0 if motion is MotionAction.TURN_LEFT else -1.0
             self._rotate_robot_yaw(robot_id, direction * self.robot.turn_angle_rad)
         self._desired_targets[robot_id, 1] = (
             self.robot.front_lift_angle_rad

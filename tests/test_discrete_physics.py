@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from math import atan2, pi
 
+import mujoco
 import pytest
 
 from bari_sim.robot import GripAction, LiftAction, MotionAction, RobotAction
@@ -48,6 +49,32 @@ def test_turn_rotates_whole_free_body_by_one_tuned_increment() -> None:
     initial = _heading(simulation)
     simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
     assert (_heading(simulation) - initial) * 180.0 / pi == pytest.approx(8.0, abs=0.2)
+
+
+def test_manual_halt_clears_momentum_and_preserves_pose() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    simulation.step({0: RobotAction(MotionAction.CURL_BODY)})
+    pose = simulation.data.qpos.copy()
+    simulation.halt_motion()
+    assert simulation.data.qpos == pytest.approx(pose)
+    assert simulation.data.qvel == pytest.approx(0.0)
+    mujoco.mj_forward(simulation.model, simulation.data)
+    assert simulation.data.qpos == pytest.approx(pose)
+
+
+def test_lift_action_can_lock_free_body_pose() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    pose = simulation.data.qpos.copy()
+    simulation.step(
+        {0: RobotAction(lift=LiftAction.LIFT_FRONT)},
+        lock_root_motion=(0,),
+    )
+    root = simulation.root_joint_ids[0]
+    address = int(simulation.model.jnt_qposadr[root])
+    assert simulation.data.qpos[address : address + 3] == pytest.approx(pose[:3])
+    assert simulation.data.qvel[int(simulation.model.jnt_dofadr[root]) :][
+        :3
+    ] == pytest.approx(0.0)
 
 
 def test_rear_attachment_holds_then_breaks_above_50_grams_force() -> None:

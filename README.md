@@ -31,10 +31,10 @@ python -m pip install -e .
 ```bash
 barisimulation help
 barisimulation help manual
-barisimulation manual --robots 1*1 --environment flat
-barisimulation infer --robots 2*5 --model models/collision-avoidance.json --task collision-avoidance
-barisimulation train --robots 2*5 --task gap --difficulty 1
-barisimulation evaluate --robots 2*5 --task gap --difficulty 1
+barisimulation manual --robots '1*1' --environment flat
+barisimulation infer --robots '2*5' --model models/collision-avoidance.json --task collision-avoidance
+barisimulation train --robots '2*5' --task gap --difficulty 1
+barisimulation evaluate --robots '2*5' --task gap --difficulty 1
 ```
 
 `train`의 기본 출력은 `models/<task>.json`이고 `evaluate`는 `--model`이 없을 때 같은 경로를 읽습니다. 학습은 `train`을 직접 실행할 때만 시작됩니다.

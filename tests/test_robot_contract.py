@@ -66,6 +66,31 @@ def test_sensors_and_spike_are_sites_not_physical_geometries() -> None:
     assert tuple(model.site("robot_0_right_sensor").pos) == pytest.approx(
         (0.05, -0.05, 0.0)
     )
+    rear_geom = model.geom("robot_0_rear_geom")
+    middle_geom = model.geom("robot_0_middle_geom")
+    front_geom = model.geom("robot_0_front_geom")
+    minimum_x = min(
+        rear_geom.pos[0] - rear_geom.size[0],
+        model.body_pos[middle_body, 0] + middle_geom.pos[0] - middle_geom.size[0],
+        model.body_pos[middle_body, 0]
+        + model.body_pos[front_body, 0]
+        + front_geom.pos[0]
+        - front_geom.size[0],
+    )
+    maximum_x = max(
+        rear_geom.pos[0] + rear_geom.size[0],
+        model.body_pos[middle_body, 0] + middle_geom.pos[0] + middle_geom.size[0],
+        model.body_pos[middle_body, 0]
+        + model.body_pos[front_body, 0]
+        + front_geom.pos[0]
+        + front_geom.size[0],
+    )
+    assert maximum_x - minimum_x == pytest.approx(0.15)
+    assert 2.0 * rear_geom.size[1] == pytest.approx(0.10)
+    assert 2.0 * rear_geom.size[2] == pytest.approx(0.01)
+    assert (rear_geom.group, middle_geom.group, front_geom.group) == (1, 1, 1)
+    assert tuple(rear_geom.rgba) != tuple(middle_geom.rgba)
+    assert tuple(front_geom.rgba) != tuple(middle_geom.rgba)
 
 
 def test_observation_contains_only_declared_policy_fields() -> None:
