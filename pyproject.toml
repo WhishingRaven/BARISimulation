@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bari-simulation"
+version = "0.1.0"
+description = "Experimental platform for emergent swarm robotics"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mujoco>=3.13,<4",
+    "numpy>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "ruff>=0.16"]
+
+[project.scripts]
+bari-manual = "bari_sim.cli:manual_main"
+bari-gait-test = "bari_sim.cli:gait_test_main"
+bari-attachment-test = "bari_sim.cli:attachment_test_main"
+bari-baseline = "bari_sim.cli:baseline_main"
+bari-swarm = "bari_sim.swarm.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["bari_sim*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

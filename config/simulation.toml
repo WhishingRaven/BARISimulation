@@ -1,0 +1,16 @@
+[simulation]
+timestep_s = 0.002
+gravity_m_s2 = 9.81
+integrator = "implicitfast"
+solver_iterations = 80
+# Dense formation: rows x columns. CLI --robots overrides rows only.
+robot_rows = 3
+robot_columns = 5
+formation_row_gap_m = 0.0
+formation_column_gap_m = 0.0
+random_seed = 7
+environment = "flat"
+spawn_x_m = -0.55
+spawn_clearance_m = 0.004
+log_interval_s = 0.020
+realtime_scale = 1.0

@@ -1,0 +1,25 @@
+# Environment dimensions and friction are assumed starting values.
+[flat]
+surface_friction = [0.80, 0.005, 0.0001]
+platform_length_m = 2.50
+platform_width_m = 1.50
+platform_thickness_m = 0.10
+
+[gap]
+surface_friction = [0.80, 0.005, 0.0001]
+gap_width_m = 0.30
+platform_height_m = 0.12
+platform_length_m = 1.20
+platform_width_m = 1.00
+platform_thickness_m = 0.10
+
+[step]
+surface_friction = [0.80, 0.005, 0.0001]
+platform_length_m = 2.50
+platform_width_m = 1.50
+platform_thickness_m = 0.10
+step_height_m = 0.22
+step_width_m = 0.35
+step_depth_m = 1.00
+step_x_m = 0.60
+

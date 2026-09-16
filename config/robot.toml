@@ -1,0 +1,92 @@
+# All values below are engineering guesses, not measurements. See README calibration table.
+[robot]
+link_count = 3
+link_lengths_m = [0.18, 0.20, 0.18]
+width_m = 0.110
+thickness_m = 0.00625
+link_masses_kg = [0.075, 0.090, 0.075]
+# Offsets from each link's geometric center, in its local frame.
+center_of_mass_offsets_m = [
+  [0.0, 0.0, 0.0],
+  [0.0, 0.0, 0.0],
+  [0.0, 0.0, 0.0],
+]
+# Empty means analytic box inertia. Supply one [Ixx, Iyy, Izz] vector per link to override.
+inertia_diagonal_kg_m2 = []
+
+[robot.joint]
+limits_deg = [[-135.0, 135.0], [-135.0, 135.0]]
+max_torque_nm = 0.35
+max_speed_rad_s = 40.0
+damping_nms_rad = 0.030
+stiffness_nm_rad = 0.0
+armature_kg_m2 = 0.00002
+position_kp_nm_rad = 4.0
+velocity_kd_nms_rad = 0.12
+
+[robot.contact]
+shape = "box"
+# MuJoCo sliding, torsional, rolling friction coefficients.
+friction = [0.80, 0.005, 0.0001]
+# Explicit coefficient for contacts between two robots.
+robot_robot_friction = [0.60, 0.004, 0.0001]
+condim = 4
+solref = [0.010, 1.0]
+solimp = [0.90, 0.95, 0.001]
+
+[robot.gripper]
+length_m = 0.030
+width_m = 0.035
+thickness_m = 0.018
+location = "front"
+
+[robot.attachment]
+# 0.240 kg * 9.81 m/s^2 = 2.354 N: about one robot weight.
+break_force_n = 2.354
+break_moment_nm = 0.080
+failure_model = "force"
+allow_environment = true
+solref = [0.008, 1.0]
+solimp = [0.95, 0.99, 0.001]
+
+[robot.directional_friction]
+# Thin underside anchor pads supply the only asymmetric tangential contact.
+enabled = true
+# Low resistance while a pad recovers forward, high resistance while it is
+# driven backward: the resulting contact reaction produces forward crawling.
+forward_sliding_coefficient = 0.20
+reverse_sliding_coefficient = 2.00
+lateral_coefficient = 0.90
+transition_speed_m_s = 0.010
+
+[[robot.range_sensors]]
+name = "forward"
+direction_local = [1.0, 0.0, 0.0]
+max_range_m = 0.60
+field_of_view_deg = 0.0
+noise_std_m = 0.0
+update_rate_hz = 50.0
+
+[[robot.range_sensors]]
+name = "forward_left"
+direction_local = [1.0, 0.45, 0.0]
+max_range_m = 0.60
+field_of_view_deg = 0.0
+noise_std_m = 0.0
+update_rate_hz = 50.0
+
+[[robot.range_sensors]]
+name = "forward_right"
+direction_local = [1.0, -0.45, 0.0]
+max_range_m = 0.60
+field_of_view_deg = 0.0
+noise_std_m = 0.0
+update_rate_hz = 50.0
+
+[[robot.range_sensors]]
+name = "forward_down"
+direction_local = [0.55, 0.0, -1.0]
+max_range_m = 0.60
+field_of_view_deg = 0.0
+noise_std_m = 0.0
+update_rate_hz = 50.0
