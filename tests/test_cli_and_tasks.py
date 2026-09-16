@@ -17,6 +17,7 @@ from bari_sim.workflows.manual import (
     ManualShortcutDefaults,
     manual_camera_pose,
     manual_overlay_text,
+    manual_selection_overlay_text,
 )
 
 
@@ -42,6 +43,14 @@ def test_all_task_difficulties_build_valid_scenes() -> None:
                 SceneRequest(RobotGrid(1, 1), task.environment, task)
             ).build()
             mujoco.MjModel.from_xml_string(scene.xml)
+
+
+def test_flat_scene_includes_non_colliding_floor_grid() -> None:
+    scene = SceneBuilder(SceneRequest(RobotGrid(1, 1), "flat")).build()
+    assert 'name="floor_grid_x_+0"' in scene.xml
+    assert 'name="floor_grid_y_+0"' in scene.xml
+    assert 'contype="0"' in scene.xml
+    assert 'conaffinity="0"' in scene.xml
 
 
 def test_help_command_and_required_command_shapes(capsys) -> None:
@@ -91,12 +100,21 @@ def test_manual_actions_latch_independently() -> None:
     assert controller.actions()[1].motion.name == "STOP"
 
 
+def test_manual_number_keys_select_robots_one_through_ten() -> None:
+    controller = ManualController(10)
+    for keycode, expected in ((49, 0), (57, 8), (48, 9), (321, 0), (320, 9)):
+        controller.key_callback(keycode)
+        controller.process_keys()
+        assert controller.state.selected_robot_id == expected
+
+
 def test_manual_overlay_shows_controls_and_active_action() -> None:
     controller = ManualController(1)
     controller.handle_key("w")
     simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
     controls, status = manual_overlay_text(controller, simulation)
     assert "Hold W/S" in controls
+    assert "0→R10" in manual_selection_overlay_text()
     assert "● CURL_BODY" in status
     assert "ROBOT 1" in status
     assert "STRAIN" in status

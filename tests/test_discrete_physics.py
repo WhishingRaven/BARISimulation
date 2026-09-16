@@ -53,12 +53,34 @@ def test_repeating_an_already_reached_posture_does_not_creep() -> None:
     assert simulation.data.qpos[:7] == pytest.approx(pose[:7])
 
 
+def test_locking_unselected_root_prevents_previous_robot_drift() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 2), "flat"))
+    simulation.step({0: RobotAction(MotionAction.CURL_BODY), 1: RobotAction()})
+    pose = simulation.data.qpos.copy()
+    simulation.halt_motion()
+    simulation.step(
+        {0: RobotAction(), 1: RobotAction(MotionAction.CURL_BODY)},
+        lock_root_motion=(0,),
+    )
+    assert simulation.data.qpos[:7] == pytest.approx(pose[:7])
+
+
 def test_turn_rotates_whole_free_body_by_one_tuned_increment() -> None:
     simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
     simulation.step({0: RobotAction()})
     initial = _heading(simulation)
     simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
     assert (_heading(simulation) - initial) * 180.0 / pi == pytest.approx(8.0, abs=0.2)
+
+
+def test_turn_after_curl_keeps_root_translation_in_place() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    simulation.step({0: RobotAction()})
+    simulation.step({0: RobotAction(MotionAction.CURL_BODY)})
+    simulation.halt_motion()
+    pose = simulation.data.qpos.copy()
+    simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
+    assert simulation.data.qpos[:3] == pytest.approx(pose[:3])
 
 
 def test_manual_halt_clears_momentum_and_preserves_pose() -> None:

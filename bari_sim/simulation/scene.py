@@ -324,6 +324,8 @@ class SceneBuilder:
                     **common,
                 },
             )
+            if self.request.environment == "flat":
+                self._add_floor_grid(world, platform_width)
         if self.request.environment == "step":
             length = 6.0
             ET.SubElement(
@@ -349,6 +351,69 @@ class SceneBuilder:
                     "pos": _numbers((target_x, 0.0, 0.002)),
                     "size": "0.25 0.002",
                     "rgba": "0.15 0.85 0.25 0.65",
+                },
+            )
+
+    @staticmethod
+    def _add_floor_grid(world: ET.Element, platform_width: float) -> None:
+        """Add non-colliding reference lines so small translations are visible."""
+
+        grid_half_x = 6.0
+        grid_half_y = max(platform_width / 2.0, 0.8)
+        spacing = 0.10
+        line_height = 0.00015
+        line_width = 0.00035
+        grid_common = {
+            "type": "box",
+            "pos": "0 0 0.0002",
+            "contype": "0",
+            "conaffinity": "0",
+            "group": "1",
+        }
+        x_count = round(grid_half_x / spacing)
+        y_count = round(grid_half_y / spacing)
+        for index in range(-x_count, x_count + 1):
+            x = index * spacing
+            major = index % 5 == 0
+            ET.SubElement(
+                world,
+                "geom",
+                {
+                    "name": f"floor_grid_x_{index:+d}",
+                    "pos": _numbers((x, 0.0, 0.0002)),
+                    "size": _numbers(
+                        (
+                            line_width if major else line_width / 2.0,
+                            grid_half_y,
+                            line_height,
+                        )
+                    ),
+                    "rgba": "0.12 0.18 0.24 0.62" if major else "0.18 0.24 0.30 0.32",
+                    **{
+                        key: value for key, value in grid_common.items() if key != "pos"
+                    },
+                },
+            )
+        for index in range(-y_count, y_count + 1):
+            y = index * spacing
+            major = index % 5 == 0
+            ET.SubElement(
+                world,
+                "geom",
+                {
+                    "name": f"floor_grid_y_{index:+d}",
+                    "pos": _numbers((0.0, y, 0.0002)),
+                    "size": _numbers(
+                        (
+                            grid_half_x,
+                            line_width if major else line_width / 2.0,
+                            line_height,
+                        )
+                    ),
+                    "rgba": "0.12 0.18 0.24 0.62" if major else "0.18 0.24 0.30 0.32",
+                    **{
+                        key: value for key, value in grid_common.items() if key != "pos"
+                    },
                 },
             )
 

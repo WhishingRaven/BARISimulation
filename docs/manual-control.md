@@ -28,6 +28,6 @@ barisimulation manual --robots '2*5' --environment step --difficulty 2
 
 W/S/A/D는 누르고 있는 동안 0.5초 policy step을 연속 실행하고, 키를 놓으면 현재 step이 끝난 직후 정지합니다. 짧게 누르면 한 step만 실행됩니다. lift와 grip은 서로 독립적으로 latch되므로, 예를 들어 R을 누른 뒤 W를 누르면 앞쪽을 든 상태로 몸체를 curl합니다.
 
-뷰어 왼쪽 위에는 이 조작법이 표시되고, 오른쪽 위에는 선택한 로봇의 `motion`, `lift`, `grip` 상태가 표시됩니다. 각 상태 앞의 채워진 점(`●`)이 현재 적용 중인 action component입니다.
+뷰어 왼쪽 위에는 기본 조작법, 왼쪽 아래에는 숫자 로봇 선택표가 표시되고, 오른쪽 위에는 선택한 로봇의 `motion`, `lift`, `grip` 상태가 표시됩니다. 각 상태 앞의 채워진 점(`●`)이 현재 적용 중인 action component입니다.
 
 macOS에서는 viewer 명령이 활성 conda 환경의 `mjpython`으로 자동 재실행됩니다. 따라서 사용자 명령은 그대로 `barisimulation manual ...`을 사용합니다.

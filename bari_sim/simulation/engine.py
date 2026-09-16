@@ -124,14 +124,18 @@ class Simulation:
         realtime: bool = False,
         render_hz: float = 60.0,
         lock_root_motion: Collection[int] | None = None,
+        lock_root_translation: Collection[int] | None = None,
     ) -> StepResult:
         self._validate_actions(actions)
         self.attachments.begin_control_step()
         locked_roots = set(lock_root_motion or ())
+        locked_translations = set(lock_root_translation or ())
         for robot_id in range(self.robot_count):
             action = actions[robot_id]
             if self._rear_posture_is_reached(robot_id, action.motion):
                 locked_roots.add(robot_id)
+            if action.motion in {MotionAction.TURN_LEFT, MotionAction.TURN_RIGHT}:
+                locked_translations.add(robot_id)
             self._set_action(robot_id, action)
         mujoco.mj_forward(self.model, self.data)
         for robot_id in range(self.robot_count):
@@ -141,6 +145,7 @@ class Simulation:
 
         collision_pairs: set[tuple[int, int]] = set()
         locked_roots = tuple(locked_roots)
+        locked_translations = tuple(locked_translations)
         locked_poses = {
             robot_id: (
                 self.data.qpos[
@@ -151,6 +156,17 @@ class Simulation:
                 ][:6].copy(),
             )
             for robot_id in locked_roots
+        }
+        locked_positions = {
+            robot_id: (
+                self.data.qpos[
+                    int(self.model.jnt_qposadr[self.root_joint_ids[robot_id]]) :
+                ][:3].copy(),
+                self.data.qvel[
+                    int(self.model.jnt_dofadr[self.root_joint_ids[robot_id]]) :
+                ][:3].copy(),
+            )
+            for robot_id in locked_translations
         }
         callback_stride = max(1, round(1.0 / (render_hz * self.timestep_s)))
         wall_start = time.monotonic()
@@ -171,7 +187,14 @@ class Simulation:
                 dof_address = int(self.model.jnt_dofadr[self.root_joint_ids[robot_id]])
                 self.data.qpos[qpos_address : qpos_address + 7] = qpos
                 self.data.qvel[dof_address : dof_address + 6] = qvel
-            if locked_poses:
+            for robot_id, (position, velocity) in locked_positions.items():
+                qpos_address = int(
+                    self.model.jnt_qposadr[self.root_joint_ids[robot_id]]
+                )
+                dof_address = int(self.model.jnt_dofadr[self.root_joint_ids[robot_id]])
+                self.data.qpos[qpos_address : qpos_address + 3] = position
+                self.data.qvel[dof_address : dof_address + 3] = velocity
+            if locked_poses or locked_positions:
                 mujoco.mj_forward(self.model, self.data)
             self.attachments.post_physics_step()
             if self.attachments.lock_active_roots():

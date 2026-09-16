@@ -54,6 +54,7 @@ _MOTION_KEYS = {
     "D": MotionAction.TURN_RIGHT,
 }
 _MAC_KEY_CODES = {"A": 0, "S": 1, "D": 2, "W": 13}
+_GLFW_KEYPAD_DIGITS = {320 + digit: str(digit) for digit in range(10)}
 
 
 @dataclass(frozen=True)
@@ -120,10 +121,11 @@ class ManualController:
         self._halt_requested = False
         self._root_motion_lock_pending = False
         self._active_actions = dict(self._actions)
+        self._last_overlay_payload: tuple[str, str, str] | None = None
 
     def key_callback(self, keycode: int) -> None:
         try:
-            self._keys.put(chr(keycode))
+            self._keys.put(_GLFW_KEYPAD_DIGITS.get(keycode, chr(keycode)))
         except (ValueError, OverflowError):
             return
 
@@ -254,6 +256,7 @@ class ManualController:
         self._halt_requested = False
         self._root_motion_lock_pending = False
         self._active_actions = dict(self._actions)
+        self._last_overlay_payload = None
         self.state.reset_requested = False
 
     @staticmethod
@@ -280,7 +283,7 @@ def manual_overlay_text(
         "Hold A/D  turn left / right\n"
         "C stop | R/F lift / lower front\n"
         "Space/X attach / detach\n"
-        "1-9/0 select | B/N previous / next\n"
+        "B/N previous / next robot\n"
         "P pause | Z reset"
     )
     status = (
@@ -309,14 +312,21 @@ def manual_overlay_text(
     return controls, status
 
 
+def manual_selection_overlay_text() -> str:
+    """Return the number-key robot-selection legend for the lower-left UI."""
+
+    return "ROBOT SELECT\n1→R1 2→R2 3→R3 4→R4 5→R5\n6→R6 7→R7 8→R8 9→R9 0→R10"
+
+
 def _sync_manual_overlay(
     viewer, controller: ManualController, simulation: Simulation
 ) -> None:
-    camera_lookat = tuple(float(value) for value in viewer.cam.lookat)
-    camera_distance = float(viewer.cam.distance)
-    camera_azimuth = float(viewer.cam.azimuth)
-    camera_elevation = float(viewer.cam.elevation)
     controls, status = manual_overlay_text(controller, simulation)
+    selection = manual_selection_overlay_text()
+    payload = (controls, selection, status)
+    if controller._last_overlay_payload == payload:
+        return
+    controller._last_overlay_payload = payload
     viewer.set_texts(
         [
             (
@@ -327,18 +337,18 @@ def _sync_manual_overlay(
             ),
             (
                 mujoco.mjtFontScale.mjFONTSCALE_150,
+                mujoco.mjtGridPos.mjGRID_BOTTOMLEFT,
+                selection,
+                "",
+            ),
+            (
+                mujoco.mjtFontScale.mjFONTSCALE_150,
                 mujoco.mjtGridPos.mjGRID_TOPRIGHT,
                 status,
                 "",
             ),
         ]
     )
-    # set_texts crosses into the viewer thread; restore the user's camera
-    # state in case that synchronization copied native viewer defaults.
-    viewer.cam.lookat[:] = camera_lookat
-    viewer.cam.distance = camera_distance
-    viewer.cam.azimuth = camera_azimuth
-    viewer.cam.elevation = camera_elevation
 
 
 def run_manual_viewer(simulation: Simulation) -> None:
@@ -393,19 +403,31 @@ def run_manual_viewer(simulation: Simulation) -> None:
                 controller.process_keys()
                 shortcut_defaults.restore(viewer)
                 viewer.sync()
-                _sync_manual_overlay(viewer, controller, simulation)
-                shortcut_defaults.restore(viewer)
                 return viewer.is_running()
 
+            # Text updates cross into the viewer thread.  Keep them outside
+            # the high-frequency physics/render callback so mouse camera
+            # interaction remains responsive.
+            _sync_manual_overlay(viewer, controller, simulation)
+            # Manual mode drives one selected robot at a time.  Clear any
+            # momentum left by the previously selected robot and hold all
+            # non-selected roots while the new action runs.
+            simulation.halt_motion()
+            selected_robot_id = controller.state.selected_robot_id
+            locked_robot_ids = set(range(simulation.robot_count))
+            locked_robot_ids.discard(selected_robot_id)
+            if lock_root_motion:
+                locked_robot_ids.update(lock_root_motion)
             simulation.step(
                 actions,
                 frame_callback=sync_frame,
                 realtime=True,
-                lock_root_motion=lock_root_motion,
+                lock_root_motion=tuple(sorted(locked_robot_ids)),
             )
             if halt_requested:
                 simulation.halt_motion()
                 controller.mark_stopped()
+            _sync_manual_overlay(viewer, controller, simulation)
 
 
 def manual_camera_pose(simulation: Simulation) -> ManualCameraPose:
