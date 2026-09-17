@@ -264,12 +264,19 @@ class ManualController:
             return None
         actions = dict(self._actions)
         self._active_actions = dict(actions)
+        # Each field is an action chosen for this control step, not a UI state.
+        # The next step starts from the neutral action unless it receives a new
+        # command (or an intentionally held W/S or A/D motion command).
         self._actions = {
-            robot_id: RobotAction(MotionAction.STOP, action.lift, action.grip)
-            for robot_id, action in self._actions.items()
+            robot_id: RobotAction() for robot_id in range(self.robot_count)
         }
         self._step_pending = False
         return actions
+
+    def has_pending_action(self) -> bool:
+        """Return whether a new command should preempt the running chunk."""
+
+        return self._step_pending
 
     def take_halt_request(self) -> bool:
         requested = self._halt_requested
@@ -502,7 +509,10 @@ def run_manual_viewer(simulation: Simulation) -> None:
                 shortcut_defaults.restore(viewer)
                 _sync_robot_labels(viewer, simulation)
                 viewer.sync()
-                return viewer.is_running()
+                # A turn can span policy intervals, but a later input must not
+                # wait for it to settle.  End this small render chunk and let
+                # the outer loop dispatch the newly selected action.
+                return viewer.is_running() and not controller.has_pending_action()
 
             # Text updates cross into the viewer thread.  Keep them outside
             # the high-frequency physics/render callback so mouse camera

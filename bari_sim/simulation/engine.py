@@ -468,6 +468,18 @@ class Simulation:
             target = self._turn_target_headings[robot_id]
             torque = 0.0
             if not np.isnan(target):
+                # A fast flat-ground turn finishes within one policy interval.
+                # On a steeply pitched body (for example while straddling a
+                # step), retain the original torque limit so yaw correction
+                # does not excite the supporting contact into an oscillation.
+                forward = self.data.xmat[self.root_body_ids[robot_id]].reshape(3, 3)[
+                    :, 0
+                ]
+                torque_limit = (
+                    min(self.robot.turn_torque_nm, 0.050)
+                    if abs(forward[2]) > 0.25
+                    else self.robot.turn_torque_nm
+                )
                 error = self._turn_error(robot_id)
                 yaw_rate = self._yaw_rate(robot_id)
                 if (
@@ -493,8 +505,8 @@ class Simulation:
                         np.clip(
                             self.robot.turn_rate_kp_nms_rad
                             * (self._turn_rate_targets[robot_id] - yaw_rate),
-                            -self.robot.turn_torque_nm,
-                            self.robot.turn_torque_nm,
+                            -torque_limit,
+                            torque_limit,
                         )
                     )
             self.data.ctrl[self.turn_actuator_ids[robot_id]] = torque

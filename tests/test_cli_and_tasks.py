@@ -6,7 +6,7 @@ import mujoco
 import pytest
 
 from bari_sim.cli import build_parser, main
-from bari_sim.robot import GripAction, MotionAction, RobotAction
+from bari_sim.robot import GripAction, LiftAction, MotionAction, RobotAction
 from bari_sim.simulation import SceneBuilder, SceneRequest, Simulation
 from bari_sim.tasks import (
     DIFFICULTY_VALUES,
@@ -138,7 +138,7 @@ def test_help_command_and_required_command_shapes(capsys) -> None:
     assert train.difficulty == 3
 
 
-def test_manual_actions_latch_independently() -> None:
+def test_manual_actions_reset_to_neutral_after_each_step() -> None:
     controller = ManualController(2)
     controller.handle_key("r")
     assert controller.actions()[0].motion.name == "STOP"
@@ -147,10 +147,13 @@ def test_manual_actions_latch_independently() -> None:
     controller.handle_key("w")
     action = controller.actions()[0]
     assert action.motion.name == "CURL_BODY"
-    assert action.lift.name == "LIFT_FRONT"
-    assert action.grip.name == "ATTACH"
+    assert action.lift is LiftAction.UNLIFT_FRONT
+    assert action.grip is GripAction.DETACH
     assert controller.actions()[1].grip.name == "DETACH"
-    assert controller.take_pending_actions()[0].motion.name == "CURL_BODY"
+    dispatched = controller.take_pending_actions()[0]
+    assert dispatched.motion.name == "CURL_BODY"
+    assert dispatched.lift is LiftAction.UNLIFT_FRONT
+    assert dispatched.grip is GripAction.DETACH
     assert controller.take_pending_actions() is None
     controller.refresh_held_motion({"W"})
     assert controller.take_pending_actions()[0].motion.name == "CURL_BODY"
@@ -182,6 +185,20 @@ def test_manual_turn_keydown_runs_one_segment_then_stops_at_completion() -> None
     assert controller.take_pending_actions()[0].motion is MotionAction.TURN_LEFT
     controller.handle_key("c")
     assert controller.take_pending_actions() is None
+
+
+def test_manual_new_action_preempts_an_in_progress_turn() -> None:
+    controller = ManualController(1)
+    controller.handle_key("a")
+    assert controller.take_pending_actions()[0].motion is MotionAction.TURN_LEFT
+    assert not controller.has_pending_action()
+
+    controller.handle_key("r")
+
+    assert controller.has_pending_action()
+    action = controller.take_pending_actions()[0]
+    assert action.motion is MotionAction.STOP
+    assert action.lift is LiftAction.LIFT_FRONT
 
 
 def test_one_manual_turn_keydown_physically_stops_at_five_degrees() -> None:

@@ -37,10 +37,10 @@ class RobotSpecification:
     joint_kd_nms_rad: float = 0.012
     # The yaw controller tracks a five-degree heading target through a smooth
     # rate profile.  The motor limit is torque, never an imposed orientation.
-    turn_torque_nm: float = 0.050
-    turn_speed_rad_s: float = radians(20.0)
-    turn_acceleration_rad_s2: float = radians(180.0)
-    turn_rate_kp_nms_rad: float = 0.25
+    turn_torque_nm: float = 0.075
+    turn_speed_rad_s: float = radians(35.0)
+    turn_acceleration_rad_s2: float = radians(360.0)
+    turn_rate_kp_nms_rad: float = 0.35
     turn_angle_rad: float = radians(5.0)
     turn_angle_tolerance_rad: float = radians(0.15)
     turn_rate_tolerance_rad_s: float = radians(0.5)
