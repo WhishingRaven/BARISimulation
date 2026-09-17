@@ -449,12 +449,17 @@ def test_rear_attachment_holds_then_breaks_above_50_grams_force() -> None:
     assert simulation.data.qpos[:7] == pytest.approx(pose[:7])
     held = simulation.step(
         {0: RobotAction(grip=GripAction.ATTACH)},
-        external_forces_n={0: (0.1, 0.0, 0.0)},
+        external_forces_n={0: (0.0, 0.0, 0.1)},
     )
     assert held.observations[0].is_attaching
     assert simulation.data.qpos[:7] == pytest.approx(pose[:7])
+    lateral = simulation.step(
+        {0: RobotAction(grip=GripAction.ATTACH)},
+        external_forces_n={0: (1.0, 0.0, 0.0)},
+    )
+    assert lateral.observations[0].is_attaching
     overloaded = simulation.step(
-        {0: RobotAction(grip=GripAction.ATTACH)}, external_forces_n={0: (1.0, 0.0, 0.0)}
+        {0: RobotAction(grip=GripAction.ATTACH)}, external_forces_n={0: (0.0, 0.0, 1.0)}
     )
     assert not overloaded.observations[0].is_attaching
     assert overloaded.observations[0].strain_value == pytest.approx(100.0)
@@ -497,7 +502,7 @@ def test_robot_attachment_settles_when_placed_on_another_robot() -> None:
     held = simulation.step({0: RobotAction(), 1: RobotAction(grip=GripAction.ATTACH)})
     overloaded = simulation.step(
         {0: RobotAction(), 1: RobotAction(grip=GripAction.ATTACH)},
-        external_forces_n={1: (1.0, 0.0, 0.0)},
+        external_forces_n={1: (0.0, 0.0, 1.0)},
     )
 
     assert attached.observations[1].is_attaching

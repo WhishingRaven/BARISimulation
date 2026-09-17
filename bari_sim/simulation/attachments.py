@@ -29,6 +29,7 @@ class Attachment:
     equality_id: int
     source_site_id: int
     target_site_id: int
+    surface_normal_world: np.ndarray
     root_qpos: np.ndarray
     root_qvel: np.ndarray
     force_n: float = 0.0
@@ -108,7 +109,7 @@ class AttachmentManager:
         candidate = self._find_candidate(robot_id)
         if candidate is None:
             return False
-        target_body_id, target_robot_id, world_point = candidate
+        target_body_id, target_robot_id, world_point, surface_normal_world = candidate
         source_site_id = self.spike_site_ids[robot_id]
         source_body_id = self.model.body(body_name(robot_id, "rear")).id
         root_joint_id = int(self.model.body_jntadr[source_body_id])
@@ -149,6 +150,7 @@ class AttachmentManager:
             equality_id=equality_id,
             source_site_id=source_site_id,
             target_site_id=target_site_id,
+            surface_normal_world=surface_normal_world,
             root_qpos=self.data.qpos[root_qpos_address : root_qpos_address + 7].copy(),
             root_qvel=np.zeros(6, dtype=np.float64),
         )
@@ -188,16 +190,30 @@ class AttachmentManager:
     def post_physics_step(self) -> None:
         failures: list[tuple[int, bool]] = []
         for robot_id, attachment in tuple(self._active.items()):
-            constraint_force_n = self._constraint_force(attachment.equality_id)
-            external_force_n = float(
-                np.linalg.norm(self.data.xfrc_applied[attachment.target_body_id, :3])
+            constraint_force_n = self._normal_constraint_force(
+                attachment.equality_id, attachment.surface_normal_world
+            )
+            external_force_n = abs(
+                float(
+                    np.dot(
+                        self.data.xfrc_applied[attachment.target_body_id, :3],
+                        attachment.surface_normal_world,
+                    )
+                )
             )
             source_body_id = self.model.body(
                 body_name(attachment.source_robot_id, "rear")
             ).id
             external_force_n = max(
                 external_force_n,
-                float(np.linalg.norm(self.data.xfrc_applied[source_body_id, :3])),
+                abs(
+                    float(
+                        np.dot(
+                            self.data.xfrc_applied[source_body_id, :3],
+                            attachment.surface_normal_world,
+                        )
+                    )
+                ),
             )
             force_n = max(constraint_force_n, external_force_n)
             attachment.force_n = force_n
@@ -288,10 +304,12 @@ class AttachmentManager:
 
     def _find_candidate(
         self, robot_id: int
-    ) -> tuple[int, int | None, np.ndarray] | None:
+    ) -> tuple[int, int | None, np.ndarray, np.ndarray] | None:
         rear_geom_id = self.rear_geom_ids[robot_id]
         rear_body_id = self.model.body(body_name(robot_id, "rear")).id
-        candidates: list[tuple[bool, float, int, int | None, np.ndarray]] = []
+        candidates: list[
+            tuple[bool, float, int, int | None, np.ndarray, np.ndarray]
+        ] = []
         rear_edge = -self.robot.rear_length_m / 2.0
         for contact_index in range(self.data.ncon):
             contact = self.data.contact[contact_index]
@@ -320,18 +338,19 @@ class AttachmentManager:
                     target_body_id,
                     target_robot_id,
                     point,
+                    np.asarray(contact.frame[:3], dtype=np.float64).copy(),
                 )
             )
         if not candidates:
             return self._find_nearby_surface(robot_id)
-        _, _, body_id, target_id, point = min(
+        _, _, body_id, target_id, point, normal = min(
             candidates, key=lambda item: (item[0], item[1])
         )
-        return body_id, target_id, point
+        return body_id, target_id, point, normal
 
     def _find_nearby_surface(
         self, robot_id: int
-    ) -> tuple[int, int | None, np.ndarray] | None:
+    ) -> tuple[int, int | None, np.ndarray, np.ndarray] | None:
         """Find a floor or robot-top surface just below the rear spike."""
 
         site_id = self.spike_site_ids[robot_id]
@@ -360,9 +379,13 @@ class AttachmentManager:
             else int(self.model.geom_bodyid[target_geom_id])
         )
         point = origin + np.asarray((0.0, 0.0, -distance), dtype=np.float64)
-        return target_body_id, target_robot_id, point
+        return target_body_id, target_robot_id, point, np.asarray(
+            (0.0, 0.0, 1.0), dtype=np.float64
+        )
 
-    def _constraint_force(self, equality_id: int) -> float:
+    def _normal_constraint_force(
+        self, equality_id: int, surface_normal_world: np.ndarray
+    ) -> float:
         count = int(self.data.nefc)
         if count == 0:
             return 0.0
@@ -375,7 +398,9 @@ class AttachmentManager:
         )
         if rows.size == 0:
             return 0.0
-        return float(np.linalg.norm(np.asarray(self.data.efc_force[rows])))
+        constraint_force = np.asarray(self.data.efc_force[rows], dtype=np.float64)
+        normal = surface_normal_world / np.linalg.norm(surface_normal_world)
+        return abs(float(np.dot(constraint_force[:3], normal)))
 
     def _touching_other_robot(self, robot_id: int) -> bool:
         for contact_index in range(self.data.ncon):
