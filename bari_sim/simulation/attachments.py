@@ -229,20 +229,14 @@ class AttachmentManager:
         return robot_id in self._active or self._find_candidate(robot_id) is not None
 
     def active_labels(self) -> tuple[tuple[np.ndarray, float], ...]:
-        """Return persistent strain labels, including the last latch point."""
+        """Return strain labels only for currently active attachments."""
 
         return tuple(
             (
-                (
-                    np.asarray(
-                        self.data.site_xpos[self.spike_site_ids[robot_id]]
-                    ).copy()
-                    if self._last_label_positions[robot_id] is None
-                    else self._last_label_positions[robot_id].copy()
-                ),
+                np.asarray(self.data.site_xpos[attachment.source_site_id]).copy(),
                 float(self._last_strain_g[robot_id]),
             )
-            for robot_id in range(self.robot_count)
+            for robot_id, attachment in sorted(self._active.items())
         )
 
     def is_attaching(self, robot_id: int) -> bool:

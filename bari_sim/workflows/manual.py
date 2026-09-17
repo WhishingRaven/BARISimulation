@@ -340,18 +340,23 @@ def manual_overlay_text(
     )
     status = (
         f"ROBOT {controller.state.selected_robot_id + 1}\n"
-        f"MOTION  ● {motion}\n"
-        f"LIFT    ● {lift}\n"
-        f"GRIP    ● {grip}"
+        "ACTION\n"
+        f"  MOTION  ● {motion}\n"
+        f"  LIFT    ● {lift}\n"
+        f"  GRIP    ● {grip}"
     )
     if simulation is not None:
         observation = simulation.observations()[controller.state.selected_robot_id]
         nearby = ", ".join(
             str(robot_id + 1) for robot_id in observation.nearby_robot_ids
         )
+        status += "\nOBSERVATION"
+        if observation.is_attaching:
+            status += (
+                f"\nSTRAIN  {observation.strain_value:.1f} / "
+                f"{simulation.robot.maximum_strain_g:.1f} g"
+            )
         status += (
-            f"\nSTRAIN  {observation.strain_value:.1f} / "
-            f"{simulation.robot.maximum_strain_g:.1f} g"
             f"\nRANGE   F {observation.distance1:.3f}  D {observation.distance2:.3f}"
             f"\n        L {observation.distance3:.3f}  R {observation.distance4:.3f}"
             f"\nSTATE   curled={int(observation.is_curled)} "

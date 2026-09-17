@@ -69,15 +69,52 @@ def test_manual_labels_include_strain_at_active_attachment() -> None:
     assert viewer.user_scn.geoms[1].label.endswith(" g")
 
 
-def test_manual_strain_label_persists_after_attachment_releases() -> None:
+def test_manual_strain_label_is_hidden_after_attachment_releases() -> None:
     simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
     simulation.step({0: RobotAction(grip=GripAction.ATTACH)})
     simulation.step({0: RobotAction(grip=GripAction.DETACH)})
     viewer = type("Viewer", (), {})()
     viewer.user_scn = mujoco.MjvScene(simulation.model, 4)
     _sync_robot_labels(viewer, simulation)
-    assert viewer.user_scn.ngeom == 2
-    assert viewer.user_scn.geoms[1].label == "strain: 0.0 g"
+    assert viewer.user_scn.ngeom == 1
+
+
+def test_manual_strain_is_hidden_after_overload_detach() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    simulation.step({0: RobotAction(grip=GripAction.ATTACH)})
+    result = simulation.step(
+        {0: RobotAction(grip=GripAction.ATTACH)},
+        external_forces_n={0: (1.0, 0.0, 0.0)},
+    )
+    assert not result.observations[0].is_attaching
+    assert any(event.event == "overload_detached" for event in result.attachment_events)
+    viewer = type("Viewer", (), {})()
+    viewer.user_scn = mujoco.MjvScene(simulation.model, 4)
+    _sync_robot_labels(viewer, simulation)
+    _, status = manual_overlay_text(ManualController(1), simulation)
+
+    assert viewer.user_scn.ngeom == 1
+    assert "STRAIN" not in status
+
+
+def test_manual_overlay_separates_grip_action_from_attachment_observation() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    simulation.step({0: RobotAction(grip=GripAction.ATTACH)})
+    simulation.step(
+        {0: RobotAction(grip=GripAction.ATTACH)},
+        external_forces_n={0: (1.0, 0.0, 0.0)},
+    )
+    controller = ManualController(1)
+    controller.handle_key(" ")
+    controller.take_pending_actions()
+
+    _, status = manual_overlay_text(controller, simulation)
+
+    assert "ACTION" in status
+    assert "GRIP    ● ATTACH" in status
+    assert "OBSERVATION" in status
+    assert "ATTACH  possible=" in status
+    assert "active=0" in status
 
 
 def test_help_command_and_required_command_shapes(capsys) -> None:
@@ -206,8 +243,10 @@ def test_manual_overlay_shows_controls_and_active_action() -> None:
     assert "Hold W/S" in controls
     assert "0→R10" in manual_selection_overlay_text()
     assert "● CURL_BODY" in status
+    assert "ACTION" in status
+    assert "OBSERVATION" in status
     assert "ROBOT 1" in status
-    assert "STRAIN" in status
+    assert "STRAIN" not in status
     assert "RANGE" in status
     assert "ATTACH" in status
     assert "NEARBY" in status
