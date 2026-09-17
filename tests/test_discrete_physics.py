@@ -443,6 +443,21 @@ def test_rear_attachment_holds_then_breaks_above_50_grams_force() -> None:
     )
 
 
+def test_attachment_ignores_a_brief_overload_spike() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    simulation.step({0: RobotAction(grip=GripAction.ATTACH)})
+    root_body_id = simulation.root_body_ids[0]
+    simulation.data.xfrc_applied[root_body_id, :3] = (1.0, 0.0, 0.0)
+
+    for _ in range(24):  # 48 ms at the fixed 2 ms physics timestep
+        simulation.attachments.post_physics_step()
+
+    assert simulation.observations()[0].is_attaching
+    simulation.data.xfrc_applied[root_body_id, :3] = 0.0
+    simulation.attachments.post_physics_step()
+    assert simulation.observations()[0].is_attaching
+
+
 def test_robot_attachment_settles_when_placed_on_another_robot() -> None:
     simulation = Simulation(SceneRequest(RobotGrid(1, 2), "flat"))
     lower_address = int(simulation.model.jnt_qposadr[simulation.root_joint_ids[0]])

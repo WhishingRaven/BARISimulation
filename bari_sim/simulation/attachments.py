@@ -32,7 +32,7 @@ class Attachment:
     root_qpos: np.ndarray
     root_qvel: np.ndarray
     force_n: float = 0.0
-    elapsed_s: float = 0.0
+    overload_duration_s: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -45,10 +45,10 @@ class AttachmentEvent:
 
 
 class AttachmentManager:
-    # An attachment may snap across the allowed 12 mm detection range.  Give
-    # the equality one control interval to resolve that initial offset before
-    # treating force as a material overload.
-    _SETTLING_TIME_S = 0.5
+    # Contact resolution can emit a one-physics-step force spike when another
+    # robot climbs on.  A material overload must persist, rather than being a
+    # single solver impulse.
+    _OVERLOAD_DURATION_S = 0.05
 
     def __init__(
         self,
@@ -188,7 +188,6 @@ class AttachmentManager:
     def post_physics_step(self) -> None:
         failures: list[tuple[int, bool]] = []
         for robot_id, attachment in tuple(self._active.items()):
-            attachment.elapsed_s += self.model.opt.timestep
             constraint_force_n = self._constraint_force(attachment.equality_id)
             external_force_n = float(
                 np.linalg.norm(self.data.xfrc_applied[attachment.target_body_id, :3])
@@ -207,10 +206,11 @@ class AttachmentManager:
             self._last_label_positions[robot_id] = np.asarray(
                 self.data.site_xpos[attachment.source_site_id]
             ).copy()
-            if (
-                attachment.elapsed_s > self._SETTLING_TIME_S
-                and force_n > self.robot.maximum_attachment_force_n
-            ):
+            if force_n > self.robot.maximum_attachment_force_n:
+                attachment.overload_duration_s += self.model.opt.timestep
+            else:
+                attachment.overload_duration_s = 0.0
+            if attachment.overload_duration_s >= self._OVERLOAD_DURATION_S:
                 caused_by_other = (
                     attachment.target_robot_id is not None
                     or self._touching_other_robot(robot_id)
