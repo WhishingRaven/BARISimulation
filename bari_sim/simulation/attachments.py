@@ -32,6 +32,7 @@ class Attachment:
     root_qpos: np.ndarray
     root_qvel: np.ndarray
     force_n: float = 0.0
+    elapsed_s: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,11 @@ class AttachmentEvent:
 
 
 class AttachmentManager:
+    # An attachment may snap across the allowed 12 mm detection range.  Give
+    # the equality one control interval to resolve that initial offset before
+    # treating force as a material overload.
+    _SETTLING_TIME_S = 0.5
+
     def __init__(
         self,
         model: mujoco.MjModel,
@@ -182,6 +188,7 @@ class AttachmentManager:
     def post_physics_step(self) -> None:
         failures: list[tuple[int, bool]] = []
         for robot_id, attachment in tuple(self._active.items()):
+            attachment.elapsed_s += self.model.opt.timestep
             constraint_force_n = self._constraint_force(attachment.equality_id)
             external_force_n = float(
                 np.linalg.norm(self.data.xfrc_applied[attachment.target_body_id, :3])
@@ -200,7 +207,10 @@ class AttachmentManager:
             self._last_label_positions[robot_id] = np.asarray(
                 self.data.site_xpos[attachment.source_site_id]
             ).copy()
-            if force_n > self.robot.maximum_attachment_force_n:
+            if (
+                attachment.elapsed_s > self._SETTLING_TIME_S
+                and force_n > self.robot.maximum_attachment_force_n
+            ):
                 caused_by_other = (
                     attachment.target_robot_id is not None
                     or self._touching_other_robot(robot_id)
@@ -215,6 +225,12 @@ class AttachmentManager:
         if not self._active:
             return False
         for attachment in self._active.values():
+            # A robot-to-robot equality already constrains both bodies.  Also
+            # overwriting the source free joint over-constrains an occupied
+            # contact, which turns normal settling on another robot into a
+            # large solver impulse.
+            if attachment.target_robot_id is not None:
+                continue
             source_body_id = self.model.body(
                 body_name(attachment.source_robot_id, "rear")
             ).id
