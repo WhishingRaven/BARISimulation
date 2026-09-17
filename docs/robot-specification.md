@@ -20,11 +20,11 @@ rear edge                                                    front edge
 - 뒤쪽 0.06 m segment와 나머지 몸체 사이의 pitch 관절이 `CURL_BODY`를 수행합니다. 접으면 옆에서 본 몸체가 `^` 형상이 됩니다.
 - 앞쪽 0.02 m flap은 별도 pitch 관절로만 움직이며 `LIFT_FRONT`에서 위로 들립니다.
 - 질량은 세 segment 길이에 비례해 분배되고 합계는 항상 0.05 kg입니다.
-- 조향은 rear cleat를 접지점에 물린 뒤, root free joint의 yaw motor가 \(\pm0.020\ \mathrm{N\cdot m}\) 토크를 가하는 방식입니다. 위치나 quaternion을 직접 수정하지 않으므로 회전과 반작용은 MuJoCo가 풉니다. yaw 속도는 10°/s로 제한하고 속도 피드백으로 제동하므로, 접촉 마찰이 순간적으로 달라져도 과회전하지 않습니다. 조향 제어의 기준 단위는 5°이며, A/D를 계속 누르면 기준점을 5°마다 갱신해 멈춤 없이 다음 단위로 계속 회전합니다. rear가 curl된 상태라면 A/D가 rear pitch actuator로 먼저 펴고, 안정 접지 뒤 yaw 토크를 냅니다.
+- 조향은 접지 cleat 없이 root free joint의 yaw motor가 최대 \(\pm0.050\ \mathrm{N\cdot m}\) 토크를 가하는 방식입니다. 위치나 quaternion을 직접 수정하지 않으므로 회전은 MuJoCo dynamics가 풉니다. 각 5° heading 목표의 남은 오차로 부드러운 목표 yaw 속도를 만들고, 속도 오차에 비례한 torque로 가속·감속합니다. 목표에 늦게 도달하는 불안정 접지에서는 같은 목표를 유지하며, 도달한 뒤에만 다음 5° 단위로 진행합니다. W/S latch가 풀린 직후에는 pitch hinge를 낮은 토크의 compliance 제어로 유지해 접촉 변화가 떨림이나 수평 미끄러짐으로 증폭되지 않게 합니다.
 
 ## 교대 접지 cleat
 
-각 cleat는 외형 끝단보다 3 mm 안쪽에 있습니다. 이는 로봇 위에서 조향할 때 ray가 하부 로봇 상판의 모서리를 빗나가지 않게 하며, latch 반작용 토크가 하부 로봇으로 전달되게 합니다.
+각 cleat는 외형 끝단보다 3 mm 안쪽에 있습니다. 이 배치는 보행 중 ray가 하부 로봇 상판의 모서리를 빗나가지 않게 하며, W/S 동작의 latch 반작용 힘이 하부 로봇으로 전달되게 합니다. A/D 조향에는 cleat를 사용하지 않습니다.
 
 앞·뒤 끝에는 폭 전체를 덮는 낮은 cleat가 하나씩 있습니다. `CURL_BODY`에서는
 앞 cleat, `FLATTEN_BODY`에서는 뒤 cleat가 현재 바닥 또는 아래 로봇의 상판
@@ -62,7 +62,7 @@ link body에 전달됩니다. 따라서 남는 미세한 solver compliance는 �
 - MuJoCo physics timestep: 0.002 s
 - curl target: 52°
 - front lift target: 52° 위쪽
-- turn yaw torque: 0.020 N·m, max yaw speed: 10°/s, increment: 5° (rear cleat를 중심으로 회전)
+- turn yaw torque: 0.050 N·m, max yaw speed: 20°/s, increment: 5° (cleat 없이 yaw-rate feedback으로 회전)
 - 로컬 ID 통신 반경: 0.50 m
 
 통신 반경과 센서 최대 거리는 원 사양에 값이 없어서 명시적으로 둔 시뮬레이터 파라미터입니다.

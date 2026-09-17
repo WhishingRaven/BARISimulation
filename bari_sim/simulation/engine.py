@@ -120,8 +120,8 @@ class Simulation:
         )
         self._desired_targets = np.zeros((self.robot_count, 2), dtype=np.float64)
         self._limited_targets = np.zeros((self.robot_count, 2), dtype=np.float64)
-        self._turn_torques = np.zeros(self.robot_count, dtype=np.float64)
-        self._turn_start_headings = np.full(self.robot_count, np.nan)
+        self._turn_target_headings = np.full(self.robot_count, np.nan)
+        self._turn_rate_targets = np.zeros(self.robot_count, dtype=np.float64)
         self._turn_directions = np.zeros(self.robot_count, dtype=np.int8)
         self._last_actions = {
             robot_id: RobotAction() for robot_id in range(self.robot_count)
@@ -139,6 +139,13 @@ class Simulation:
     def observations(self) -> Mapping[int, RobotObservation]:
         return self.sensors.read_all()
 
+    def turn_is_settled(self, robot_id: int) -> bool:
+        """Return whether the active five-degree yaw segment has stopped."""
+
+        return not np.isnan(self._turn_target_headings[robot_id]) and self._turn_is_settled(
+            robot_id
+        )
+
     def step(
         self,
         actions: Mapping[int, RobotAction],
@@ -154,10 +161,12 @@ class Simulation:
         self.attachments.begin_control_step()
         locked_roots = set(lock_root_motion or ())
         locked_translations = set(lock_root_translation or ())
+        reached_postures: set[int] = set()
         for robot_id in range(self.robot_count):
             action = actions[robot_id]
             if self._rear_posture_is_reached(robot_id, action.motion):
                 locked_roots.add(robot_id)
+                reached_postures.add(robot_id)
             self._set_action(robot_id, action)
         mujoco.mj_forward(self.model, self.data)
         for robot_id in range(self.robot_count):
@@ -166,6 +175,7 @@ class Simulation:
                 MotionAction.STOP
                 if action.grip is GripAction.ATTACH
                 or self.attachments.is_attaching(robot_id)
+                or robot_id in reached_postures
                 else action.motion
             )
             self.gait_anchors.apply_motion(robot_id, gait_motion)
@@ -295,8 +305,8 @@ class Simulation:
         self.gait_anchors.reset()
         self._desired_targets[:] = 0.0
         self._limited_targets[:] = 0.0
-        self._turn_torques[:] = 0.0
-        self._turn_start_headings[:] = np.nan
+        self._turn_target_headings[:] = np.nan
+        self._turn_rate_targets[:] = 0.0
         self._turn_directions[:] = 0
         self._last_actions = {
             robot_id: RobotAction() for robot_id in range(self.robot_count)
@@ -313,8 +323,29 @@ class Simulation:
 
         self.data.qvel[:] = 0.0
         self.data.ctrl[:] = 0.0
+        self._turn_rate_targets[:] = 0.0
         for robot_id in range(self.robot_count):
             for hinge_index in range(2):
+                position = self._joint_position(robot_id, hinge_index)
+                self._desired_targets[robot_id, hinge_index] = position
+                self._limited_targets[robot_id, hinge_index] = position
+        mujoco.mj_forward(self.model, self.data)
+
+    def halt_robots(self, robot_ids: Collection[int]) -> None:
+        """Stop only the requested robots while preserving all other momentum."""
+
+        for robot_id in robot_ids:
+            root_dof_address = int(
+                self.model.jnt_dofadr[self.root_joint_ids[robot_id]]
+            )
+            self.data.qvel[root_dof_address : root_dof_address + 6] = 0.0
+            self.data.ctrl[self.turn_actuator_ids[robot_id]] = 0.0
+            self._turn_rate_targets[robot_id] = 0.0
+            for hinge_index in range(2):
+                joint_id = int(self.joint_ids[robot_id, hinge_index])
+                actuator_id = int(self.actuator_ids[robot_id, hinge_index])
+                self.data.qvel[int(self.model.jnt_dofadr[joint_id])] = 0.0
+                self.data.ctrl[actuator_id] = 0.0
                 position = self._joint_position(robot_id, hinge_index)
                 self._desired_targets[robot_id, hinge_index] = position
                 self._limited_targets[robot_id, hinge_index] = position
@@ -323,7 +354,8 @@ class Simulation:
     def end_turn_sessions(self) -> None:
         """Clear the current manual turn segment when its key is released."""
 
-        self._turn_start_headings[:] = np.nan
+        self._turn_target_headings[:] = np.nan
+        self._turn_rate_targets[:] = 0.0
         self._turn_directions[:] = 0
 
     def export_model(self, path: Path) -> None:
@@ -343,29 +375,29 @@ class Simulation:
             self._set_rear_target_if_needed(robot_id, self.robot.curl_angle_rad)
         elif motion is MotionAction.FLATTEN_BODY:
             self._set_rear_target_if_needed(robot_id, 0.0)
-        elif motion in {MotionAction.TURN_LEFT, MotionAction.TURN_RIGHT}:
-            # A/D must be usable from the current manual posture.  Flatten
-            # the rear through its real pitch actuator, then enable yaw once
-            # its rear cleat has a stable planar support.
-            self._set_rear_target_if_needed(robot_id, 0.0)
         elif motion is MotionAction.STOP:
             self._desired_targets[robot_id, 0] = self._joint_position(robot_id, 0)
-        # A curled rear segment leaves its cleat without a stable planar
-        # support.  Applying yaw torque then tips the body instead of turning
-        # it, so only apply the motor once the rear segment is flat.
-        can_turn = abs(self._joint_position(robot_id, 0)) <= np.deg2rad(8.0)
         direction = {
             MotionAction.TURN_LEFT: 1,
             MotionAction.TURN_RIGHT: -1,
         }.get(motion, 0)
+        target = self._turn_target_headings[robot_id]
+        if direction == 0:
+            self._turn_target_headings[robot_id] = np.nan
+            self._turn_rate_targets[robot_id] = 0.0
+        elif direction != self._turn_directions[robot_id] or np.isnan(target):
+            self._turn_target_headings[robot_id] = self._wrapped_angle(
+                self._heading(robot_id) + direction * self.robot.turn_angle_rad
+            )
+        elif self._turn_is_settled(robot_id):
+            # One public action advances one exact five-degree segment.  If a
+            # segment needed extra policy intervals because contact was poor,
+            # repeated actions keep its original target until it settles.
+            self._turn_target_headings[robot_id] = self._wrapped_angle(
+                target + direction * self.robot.turn_angle_rad
+            )
         if direction != self._turn_directions[robot_id]:
             self._turn_directions[robot_id] = direction
-            self._turn_start_headings[robot_id] = (
-                self._heading(robot_id) if direction else np.nan
-            )
-        self._turn_torques[robot_id] = (
-            direction * self.robot.turn_torque_nm if can_turn else 0.0
-        )
         self._desired_targets[robot_id, 1] = (
             self.robot.front_lift_angle_rad
             if action.lift is LiftAction.LIFT_FRONT
@@ -399,44 +431,72 @@ class Simulation:
         delta = self._desired_targets - self._limited_targets
         self._limited_targets += np.clip(delta, -maximum_step, maximum_step)
         for robot_id in range(self.robot_count):
+            turning = not np.isnan(self._turn_target_headings[robot_id])
+            joint_kp = (
+                self.robot.turn_joint_kp_nm_rad
+                if turning
+                else self.robot.joint_kp_nm_rad
+            )
+            joint_kd = (
+                self.robot.turn_joint_kd_nms_rad
+                if turning
+                else self.robot.joint_kd_nms_rad
+            )
+            joint_torque_limit = (
+                self.robot.turn_joint_torque_nm
+                if turning
+                else self.robot.joint_torque_nm
+            )
             for hinge_index in range(2):
                 joint_id = int(self.joint_ids[robot_id, hinge_index])
                 actuator_id = int(self.actuator_ids[robot_id, hinge_index])
                 qpos = float(self.data.qpos[int(self.model.jnt_qposadr[joint_id])])
                 qvel = float(self.data.qvel[int(self.model.jnt_dofadr[joint_id])])
                 torque = (
-                    self.robot.joint_kp_nm_rad
-                    * (self._limited_targets[robot_id, hinge_index] - qpos)
-                    - self.robot.joint_kd_nms_rad * qvel
+                    joint_kp * (self._limited_targets[robot_id, hinge_index] - qpos)
+                    - joint_kd * qvel
                 )
                 if abs(qvel) >= self.robot.joint_speed_rad_s and torque * qvel > 0.0:
                     torque = 0.0
                 self.data.ctrl[actuator_id] = float(
                     np.clip(
                         torque,
-                        -self.robot.joint_torque_nm,
-                        self.robot.joint_torque_nm,
+                        -joint_torque_limit,
+                        joint_torque_limit,
                     )
                 )
-            torque = self._turn_torques[robot_id]
-            if torque and self._turn_limit_reached(robot_id):
-                # Five degrees is the manual turn increment, not a hold-key
-                # stop.  Rebase the physical yaw motor immediately so A/D
-                # continues through consecutive 5° increments while held.
-                self._turn_start_headings[robot_id] = self._heading(robot_id)
-            if torque:
-                root_dof_address = int(
-                    self.model.jnt_dofadr[self.root_joint_ids[robot_id]]
-                )
-                yaw_rate = float(self.data.qvel[root_dof_address + 5])
-                desired_yaw_rate = np.copysign(self.robot.turn_speed_rad_s, torque)
-                torque = float(
-                    np.clip(
-                        self.robot.turn_rate_kp_nms_rad * (desired_yaw_rate - yaw_rate),
-                        -self.robot.turn_torque_nm,
-                        self.robot.turn_torque_nm,
+            target = self._turn_target_headings[robot_id]
+            torque = 0.0
+            if not np.isnan(target):
+                error = self._turn_error(robot_id)
+                yaw_rate = self._yaw_rate(robot_id)
+                if (
+                    abs(error) <= self.robot.turn_angle_tolerance_rad
+                    and abs(yaw_rate) <= self.robot.turn_rate_tolerance_rad_s
+                ):
+                    self._turn_rate_targets[robot_id] = 0.0
+                else:
+                    braking_rate = np.sqrt(
+                        2.0 * self.robot.turn_acceleration_rad_s2 * abs(error)
                     )
-                )
+                    requested_rate = np.copysign(
+                        min(self.robot.turn_speed_rad_s, braking_rate), error
+                    )
+                    maximum_rate_step = (
+                        self.robot.turn_acceleration_rad_s2 * self.timestep_s
+                    )
+                    rate_delta = requested_rate - self._turn_rate_targets[robot_id]
+                    self._turn_rate_targets[robot_id] += float(
+                        np.clip(rate_delta, -maximum_rate_step, maximum_rate_step)
+                    )
+                    torque = float(
+                        np.clip(
+                            self.robot.turn_rate_kp_nms_rad
+                            * (self._turn_rate_targets[robot_id] - yaw_rate),
+                            -self.robot.turn_torque_nm,
+                            self.robot.turn_torque_nm,
+                        )
+                    )
             self.data.ctrl[self.turn_actuator_ids[robot_id]] = torque
 
     def _joint_position(self, robot_id: int, hinge_index: int) -> float:
@@ -447,16 +507,44 @@ class Simulation:
         rotation = self.data.xmat[self.root_body_ids[robot_id]].reshape(3, 3)
         return float(np.arctan2(rotation[1, 0], rotation[0, 0]))
 
-    def _turn_limit_reached(self, robot_id: int) -> bool:
-        start = self._turn_start_headings[robot_id]
-        direction = self._turn_directions[robot_id]
-        if direction == 0 or np.isnan(start):
-            return False
-        delta = np.arctan2(
-            np.sin(self._heading(robot_id) - start),
-            np.cos(self._heading(robot_id) - start),
+    def _yaw_rate(self, robot_id: int) -> float:
+        body_id = self.root_body_ids[robot_id]
+        forward = self.data.xmat[body_id].reshape(3, 3)[:, 0]
+        horizontal_length_squared = float(forward[0] ** 2 + forward[1] ** 2)
+        angular_velocity = self.data.cvel[body_id, :3]
+        if horizontal_length_squared <= 1e-12:
+            # Heading itself is singular when the body's forward axis is
+            # vertical.  World-z angular velocity is the least surprising
+            # bounded fallback until a horizontal projection exists again.
+            return float(angular_velocity[2])
+        # d/dt atan2(forward_y, forward_x), derived from
+        # forward_dot = angular_velocity x forward.  Unlike free-joint qvel-z,
+        # this remains the actual heading rate while the robot is pitched or
+        # rolling over a step or another robot.
+        return float(
+            angular_velocity[2]
+            - forward[2]
+            * (
+                forward[0] * angular_velocity[0]
+                + forward[1] * angular_velocity[1]
+            )
+            / horizontal_length_squared
         )
-        return direction * delta >= self.robot.turn_angle_rad
+
+    def _turn_error(self, robot_id: int) -> float:
+        return self._wrapped_angle(
+            self._turn_target_headings[robot_id] - self._heading(robot_id)
+        )
+
+    def _turn_is_settled(self, robot_id: int) -> bool:
+        return (
+            abs(self._turn_error(robot_id)) <= self.robot.turn_angle_tolerance_rad
+            and abs(self._yaw_rate(robot_id)) <= self.robot.turn_rate_tolerance_rad_s
+        )
+
+    @staticmethod
+    def _wrapped_angle(angle: float) -> float:
+        return float(np.arctan2(np.sin(angle), np.cos(angle)))
 
     def _robot_collision_pairs(self) -> set[tuple[int, int]]:
         pairs: set[tuple[int, int]] = set()

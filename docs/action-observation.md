@@ -14,12 +14,12 @@ a = (a_motion, a_lift, a_grip)
 |---|---|---|
 | `CURL_BODY` | W | 뒤쪽 관절을 접어 `^` 형상 생성 |
 | `FLATTEN_BODY` | S | 뒤쪽 관절을 펴 `_` 형상 생성 |
-| `TURN_LEFT` | A | rear를 실제 pitch actuator로 먼저 펴고, rear cleat를 현재 아래 표면(바닥·step 상판·다른 로봇 상판)에 물린 뒤 yaw motor 토크로 반시계 방향 회전 |
-| `TURN_RIGHT` | D | rear를 실제 pitch actuator로 먼저 펴고, rear cleat를 현재 아래 표면(바닥·step 상판·다른 로봇 상판)에 물린 뒤 yaw motor 토크로 시계 방향 회전 |
+| `TURN_LEFT` | A | 현재 자세를 유지하고 5° heading 목표를 향해 yaw-rate feedback motor torque로 반시계 방향 회전 |
+| `TURN_RIGHT` | D | 현재 자세를 유지하고 5° heading 목표를 향해 yaw-rate feedback motor torque로 시계 방향 회전 |
 | `STOP` | C | 현재 rear 관절 자세 유지 |
 
 현재 `W_n`의 curl 강도 선택지는 구현하지 않고 하나의 `CURL_BODY`만 제공합니다.
-W에서는 앞쪽 cleat, S에서는 뒤쪽 cleat가 바닥 또는 아래 로봇 상판에 물리 latch되어 교대로 접지합니다.
+W에서는 앞쪽 cleat, S에서는 뒤쪽 cleat가 바닥 또는 아래 로봇 상판에 물리 latch되어 교대로 접지합니다. A/D는 이 gait cleat를 활성화하지 않습니다.
 W와 S를 번갈아 선택하면 이 교대 접지와 관절 운동으로 +x 전방 이동이 발생합니다.
 명시적으로 `ATTACH`를 유지하면 기존 뒤쪽 spike attachment가 우선하며, 자동 cleat latch는 비활성화됩니다.
 Manual 화면의 strain 라벨은 마지막 latch 위치에 계속 남으며, 해제 뒤에는 `0.0 g`로 갱신됩니다.
@@ -38,7 +38,7 @@ Manual 화면의 strain 라벨은 마지막 latch 위치에 계속 남으며, �
 | `ATTACH` | Space | 뒤쪽 가시 접촉에 attachment 요청/유지 |
 | `DETACH` | X | attachment 해제; 미부착 기본 출력 |
 
-Policy는 세 component를 매 step 다시 출력합니다. Manual의 W/S/A/D는 키를 누르는 동안만 반복 출력되고, 키를 놓으면 현재 0.5초 step 뒤 정지합니다. lift와 grip component는 다음 입력까지 유지됩니다.
+Policy는 세 component를 매 step 다시 출력합니다. Manual의 W/S는 키를 누르는 동안 반복 출력되고, 키를 놓으면 현재 0.5초 step 뒤 정지합니다. A/D는 한 번의 keydown으로 같은 5° 목표를 정착할 때까지 반복한 뒤 자동 정지합니다. lift와 grip component는 다음 입력까지 유지됩니다.
 
 ## Observation
 

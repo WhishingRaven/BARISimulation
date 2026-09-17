@@ -232,7 +232,7 @@ class ManualController:
         if key not in pressed_keys:
             # CoreGraphics can report a single false sample while a passive
             # MuJoCo viewer is syncing.  Require three consecutive misses so
-            # a held A/D or W/S command is not truncated after one step.
+            # a held W/S command is not truncated after one step.
             self._held_key_misses += 1
             if self._held_key_misses < 3:
                 return
@@ -284,6 +284,19 @@ class ManualController:
     def mark_stopped(self) -> None:
         self._active_actions = dict(self._actions)
 
+    def mark_turn_complete(self, robot_id: int) -> None:
+        """Stop reissuing A/D after its five-degree segment has settled."""
+
+        if self._latched_turn is None or self._latched_turn[0] != robot_id:
+            return
+        self._latched_turn = None
+        self._step_pending = False
+        current = self._actions[robot_id]
+        stopped = RobotAction(MotionAction.STOP, current.lift, current.grip)
+        self._actions[robot_id] = stopped
+        self._active_actions[robot_id] = stopped
+        self.state.message = "STOP"
+
     def reset(self) -> None:
         self._actions = {
             robot_id: RobotAction() for robot_id in range(self.robot_count)
@@ -301,7 +314,7 @@ class ManualController:
     @staticmethod
     def help_text() -> str:
         return (
-            "Hold W/S curl/flatten | A/D continuous turn | C stop | "
+            "Hold W/S curl/flatten | A/D turn 5 degrees | C stop | "
             "R lift front | F lower front | Space attach | X detach | "
             "1-9/0 or B/N select | P pause | Z reset"
         )
@@ -319,7 +332,7 @@ def manual_overlay_text(
     controls = (
         "BARI MANUAL CONTROLS\n"
         "Hold W/S  curl / flatten\n"
-        "A/D start continuous turn | C stop\n"
+        "A/D turn 5 degrees\n"
         "C stop | R/F lift / lower front\n"
         "Space/X attach / detach\n"
         "B/N previous / next robot\n"
@@ -490,21 +503,28 @@ def run_manual_viewer(simulation: Simulation) -> None:
             # the high-frequency physics/render callback so mouse camera
             # interaction remains responsive.
             _sync_manual_overlay(viewer, controller, simulation)
-            # Manual mode drives one selected robot at a time.  Clear any
-            # momentum left by the previously selected robot and hold all
-            # non-selected roots while the new action runs.
-            simulation.halt_motion()
+            # Manual mode drives one selected robot at a time.  Stop and hold
+            # only the non-selected roots; preserving the selected robot's
+            # velocity avoids a visible jerk at every 0.5-second boundary.
             selected_robot_id = controller.state.selected_robot_id
             locked_robot_ids = set(range(simulation.robot_count))
             locked_robot_ids.discard(selected_robot_id)
             if lock_root_motion:
                 locked_robot_ids.update(lock_root_motion)
+            simulation.halt_robots(locked_robot_ids)
             simulation.step(
                 actions,
                 frame_callback=sync_frame,
                 realtime=True,
                 lock_root_motion=tuple(sorted(locked_robot_ids)),
             )
+            if (
+                actions[selected_robot_id].motion
+                in {MotionAction.TURN_LEFT, MotionAction.TURN_RIGHT}
+                and simulation.turn_is_settled(selected_robot_id)
+            ):
+                simulation.end_turn_sessions()
+                controller.mark_turn_complete(selected_robot_id)
             if halt_requested:
                 simulation.halt_motion()
                 simulation.end_turn_sessions()

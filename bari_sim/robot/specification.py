@@ -35,12 +35,21 @@ class RobotSpecification:
     joint_speed_rad_s: float = radians(180.0)
     joint_kp_nm_rad: float = 0.55
     joint_kd_nms_rad: float = 0.012
-    # The yaw motor is applied while the rear cleat is physically latched.
-    # This is a torque limit, not an imposed orientation increment.
-    turn_torque_nm: float = 0.020
-    turn_speed_rad_s: float = radians(10.0)
-    turn_rate_kp_nms_rad: float = 0.12
+    # The yaw controller tracks a five-degree heading target through a smooth
+    # rate profile.  The motor limit is torque, never an imposed orientation.
+    turn_torque_nm: float = 0.050
+    turn_speed_rad_s: float = radians(20.0)
+    turn_acceleration_rad_s2: float = radians(180.0)
+    turn_rate_kp_nms_rad: float = 0.25
     turn_angle_rad: float = radians(5.0)
+    turn_angle_tolerance_rad: float = radians(0.15)
+    turn_rate_tolerance_rad_s: float = radians(0.5)
+    # Releasing a gait latch changes the support constraints abruptly.  Use a
+    # compliant posture hold during yaw so the pitch motors do not turn that
+    # transition into high-frequency shaking and horizontal slip.
+    turn_joint_torque_nm: float = 0.010
+    turn_joint_kp_nm_rad: float = 0.070
+    turn_joint_kd_nms_rad: float = 0.012
     sensor_range_m: float = 1.0
     communication_range_m: float = 0.50
     attachment_contact_tolerance_m: float = 0.012

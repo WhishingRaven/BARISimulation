@@ -17,7 +17,7 @@ barisimulation manual --robots '2*5' --environment step --difficulty 2
 | 키 | 동작 |
 |---|---|
 | W / S | curl / flatten |
-| A / D | rear를 자동으로 평평하게 만든 뒤 cleat를 아래 지지면에 물린 yaw motor 좌회전 / 우회전. 한 번 누르면 연속 회전을 시작하며 C 또는 다른 물리 조작으로 정지 |
+| A / D | 현재 자세를 유지한 채 yaw motor torque로 정확히 한 번의 5° 좌회전 / 우회전. 목표각과 낮은 yaw 속도에 도달하면 자동 정지 |
 | C | motion 정지 |
 | R / F | 앞쪽 flap 들기 / 내리기 |
 | Space / X | 가시 attach / detach |
@@ -26,7 +26,7 @@ barisimulation manual --robots '2*5' --environment step --difficulty 2
 | P | 일시 정지 |
 | Z | 초기 상태로 reset |
 
-W/S/A/D는 누르고 있는 동안 0.5초 policy step을 연속 실행하고, 키를 놓으면 현재 step이 끝난 직후 정지합니다. 짧게 누르면 한 step만 실행됩니다. lift와 grip은 서로 독립적으로 latch되므로, 예를 들어 R을 누른 뒤 W를 누르면 앞쪽을 든 상태로 몸체를 curl합니다.
+W/S는 누르고 있는 동안 0.5초 policy step을 연속 실행하고, 키를 놓으면 현재 step이 끝난 직후 정지합니다. A/D는 한 번 누르면 필요한 만큼 policy step을 이어서 실행하되, 5° 목표에 정착하면 자동으로 멈춥니다. lift와 grip은 서로 독립적으로 latch되므로, 예를 들어 R을 누른 뒤 W를 누르면 앞쪽을 든 상태로 몸체를 curl합니다.
 
 뷰어 왼쪽 위에는 기본 조작법, 왼쪽 아래에는 숫자 로봇 선택표가 표시되고, 오른쪽 위에는 선택한 로봇의 `motion`, `lift`, `grip` 상태가 표시됩니다. 각 상태 앞의 채워진 점(`●`)이 현재 적용 중인 action component입니다.
 

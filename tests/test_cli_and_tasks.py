@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from math import atan2, pi
+
 import mujoco
 import pytest
 
@@ -127,15 +129,49 @@ def test_manual_actions_latch_independently() -> None:
     assert controller.actions()[1].motion.name == "STOP"
 
 
-def test_manual_turn_keydown_starts_continuous_turn() -> None:
+def test_manual_turn_keydown_runs_one_segment_then_stops_at_completion() -> None:
     controller = ManualController(1)
     controller.handle_key("a")
     assert controller.take_pending_actions() is not None
 
-    # A/D does not depend on platform held-key polling for its next step.
+    # A/D repeats policy steps without depending on platform held-key polling.
+    assert controller.take_pending_actions()[0].motion is MotionAction.TURN_LEFT
+    controller.mark_turn_complete(0)
+    assert controller.take_pending_actions() is None
+    assert controller.actions()[0].motion is MotionAction.STOP
+
+    # A new keydown starts the next independent five-degree segment.
+    controller.handle_key("a")
     assert controller.take_pending_actions()[0].motion is MotionAction.TURN_LEFT
     controller.handle_key("c")
     assert controller.take_pending_actions() is None
+
+
+def test_one_manual_turn_keydown_physically_stops_at_five_degrees() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    controller = ManualController(1)
+    rotation = simulation.data.xmat[simulation.root_body_ids[0]].reshape(3, 3)
+    initial_heading = atan2(rotation[1, 0], rotation[0, 0])
+    controller.handle_key("a")
+
+    for _ in range(60):
+        actions = controller.take_pending_actions()
+        assert actions is not None
+        simulation.step(actions)
+        if simulation.turn_is_settled(0):
+            simulation.end_turn_sessions()
+            controller.mark_turn_complete(0)
+            break
+    else:
+        pytest.fail("manual turn did not settle")
+
+    rotation = simulation.data.xmat[simulation.root_body_ids[0]].reshape(3, 3)
+    final_heading = atan2(rotation[1, 0], rotation[0, 0])
+    assert (final_heading - initial_heading) * 180.0 / pi == pytest.approx(
+        5.0, abs=0.15
+    )
+    assert controller.take_pending_actions() is None
+    assert controller.actions()[0].motion is MotionAction.STOP
 
 
 def test_manual_held_motion_ignores_one_false_poll_but_stops_on_release() -> None:
