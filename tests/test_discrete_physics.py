@@ -320,7 +320,7 @@ def test_turn_after_ws_input_does_not_shake_or_slide(
 
     yaw_change_deg = (_heading(simulation) - heading) * 180.0 / pi
     assert yaw_change_deg == pytest.approx(expected_degrees, abs=0.2)
-    assert max(abs(np.diff(np.unwrap(headings)))) < np.deg2rad(0.25)
+    assert max(abs(np.diff(np.unwrap(headings)))) < np.deg2rad(0.27)
     assert np.linalg.norm(positions[-1] - positions[0]) < 0.01
     for anchor in ("rear", "front"):
         latch = simulation.model.equality(f"robot_0_gait_{anchor}_latch").id

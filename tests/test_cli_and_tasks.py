@@ -116,6 +116,12 @@ def test_manual_overlay_separates_grip_action_from_attachment_observation() -> N
     assert "ATTACH  possible=" in status
     assert "active=0" in status
 
+    controller.mark_step_complete()
+    _, status_after_step = manual_overlay_text(controller, simulation)
+    assert "MOTION  ● STOP" in status_after_step
+    assert "LIFT    ● STOP" in status_after_step
+    assert "GRIP    ● STOP" in status_after_step
+
 
 def test_help_command_and_required_command_shapes(capsys) -> None:
     assert main(["help"]) == 0
@@ -147,13 +153,13 @@ def test_manual_actions_reset_to_neutral_after_each_step() -> None:
     controller.handle_key("w")
     action = controller.actions()[0]
     assert action.motion.name == "CURL_BODY"
-    assert action.lift is LiftAction.UNLIFT_FRONT
-    assert action.grip is GripAction.DETACH
-    assert controller.actions()[1].grip.name == "DETACH"
+    assert action.lift is LiftAction.STOP
+    assert action.grip is GripAction.STOP
+    assert controller.actions()[1].grip is GripAction.STOP
     dispatched = controller.take_pending_actions()[0]
     assert dispatched.motion.name == "CURL_BODY"
-    assert dispatched.lift is LiftAction.UNLIFT_FRONT
-    assert dispatched.grip is GripAction.DETACH
+    assert dispatched.lift is LiftAction.STOP
+    assert dispatched.grip is GripAction.STOP
     assert controller.take_pending_actions() is None
     controller.refresh_held_motion({"W"})
     assert controller.take_pending_actions()[0].motion.name == "CURL_BODY"

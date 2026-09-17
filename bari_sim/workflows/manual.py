@@ -291,6 +291,14 @@ class ManualController:
     def mark_stopped(self) -> None:
         self._active_actions = dict(self._actions)
 
+    def mark_step_complete(self) -> None:
+        """Show neutral actions after the just-dispatched control step ends."""
+
+        if not self._step_pending:
+            self._active_actions = {
+                robot_id: RobotAction() for robot_id in range(self.robot_count)
+            }
+
     def mark_turn_complete(self, robot_id: int) -> None:
         """Stop reissuing A/D after its five-degree segment has settled."""
 
@@ -533,6 +541,7 @@ def run_manual_viewer(simulation: Simulation) -> None:
                 realtime=True,
                 lock_root_motion=tuple(sorted(locked_robot_ids)),
             )
+            controller.mark_step_complete()
             if (
                 actions[selected_robot_id].motion
                 in {MotionAction.TURN_LEFT, MotionAction.TURN_RIGHT}

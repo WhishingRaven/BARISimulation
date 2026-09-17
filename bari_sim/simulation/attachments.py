@@ -99,7 +99,7 @@ class AttachmentManager:
     def apply_command(self, robot_id: int, command: GripAction) -> None:
         if command is GripAction.DETACH:
             self.detach(robot_id, caused_by_other=False, overloaded=False)
-        else:
+        elif command is GripAction.ATTACH:
             self.attach(robot_id)
 
     def attach(self, robot_id: int) -> bool:

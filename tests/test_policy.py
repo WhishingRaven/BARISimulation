@@ -25,6 +25,6 @@ def test_policy_round_trip_uses_only_local_observation(tmp_path) -> None:
     )
     action = loaded.act(observation)
     assert action.motion is MotionAction.STOP
-    assert action.lift is LiftAction.UNLIFT_FRONT
-    assert action.grip is GripAction.DETACH
+    assert action.lift is LiftAction.STOP
+    assert action.grip is GripAction.STOP
     assert loaded.metadata == metadata
