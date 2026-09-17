@@ -6,7 +6,7 @@ MuJoCo 기반 BARI 군집 로봇 시뮬레이터입니다. 프로젝트 전체�
 - `gap`: 협동하여 대부분의 로봇이 틈을 통과
 - `step`: 협동하여 대부분의 로봇이 단차 위로 이동
 
-로봇의 고정 형상은 10 cm × 15 cm × 1 cm, 50 g이며 policy step은 0.5초입니다. 물리 적분은 더 작은 timestep으로 수행하지만 observation과 action 교환은 정확히 0.5초마다 일어납니다.
+로봇의 고정 형상은 10 cm × 15 cm × 0.5 cm, 50 g이며 policy step은 0.5초입니다. 물리 적분은 더 작은 timestep으로 수행하지만 observation과 action 교환은 정확히 0.5초마다 일어납니다.
 
 ## 설치
 
