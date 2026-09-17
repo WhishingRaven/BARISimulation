@@ -10,7 +10,7 @@ MuJoCo 기반 BARI 군집 로봇 시뮬레이터입니다. 프로젝트 전체�
 
 ## 설치
 
-venv 대신 이름이 `barisimulation`인 conda 환경을 사용합니다.
+이름이 `barisimulation`인 conda 환경을 사용합니다.
 
 ```bash
 conda env create -f environment.yml
