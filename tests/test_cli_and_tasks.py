@@ -84,7 +84,7 @@ def test_manual_strain_is_hidden_after_overload_detach() -> None:
     simulation.step({0: RobotAction(grip=GripAction.ATTACH)})
     result = simulation.step(
         {0: RobotAction(grip=GripAction.ATTACH)},
-        external_forces_n={0: (0.0, 0.0, 1.0)},
+        external_forces_n={0: (1.0, 0.0, 0.0)},
     )
     assert not result.observations[0].is_attaching
     assert any(event.event == "overload_detached" for event in result.attachment_events)
@@ -102,7 +102,7 @@ def test_manual_overlay_separates_grip_action_from_attachment_observation() -> N
     simulation.step({0: RobotAction(grip=GripAction.ATTACH)})
     simulation.step(
         {0: RobotAction(grip=GripAction.ATTACH)},
-        external_forces_n={0: (0.0, 0.0, 1.0)},
+        external_forces_n={0: (1.0, 0.0, 0.0)},
     )
     controller = ManualController(1)
     controller.handle_key(" ")

@@ -449,17 +449,12 @@ def test_rear_attachment_holds_then_breaks_above_50_grams_force() -> None:
     assert simulation.data.qpos[:7] == pytest.approx(pose[:7])
     held = simulation.step(
         {0: RobotAction(grip=GripAction.ATTACH)},
-        external_forces_n={0: (0.0, 0.0, 0.1)},
+        external_forces_n={0: (0.1, 0.0, 0.0)},
     )
     assert held.observations[0].is_attaching
     assert simulation.data.qpos[:7] == pytest.approx(pose[:7])
-    lateral = simulation.step(
-        {0: RobotAction(grip=GripAction.ATTACH)},
-        external_forces_n={0: (1.0, 0.0, 0.0)},
-    )
-    assert lateral.observations[0].is_attaching
     overloaded = simulation.step(
-        {0: RobotAction(grip=GripAction.ATTACH)}, external_forces_n={0: (0.0, 0.0, 1.0)}
+        {0: RobotAction(grip=GripAction.ATTACH)}, external_forces_n={0: (1.0, 0.0, 0.0)}
     )
     assert not overloaded.observations[0].is_attaching
     assert overloaded.observations[0].strain_value == pytest.approx(100.0)
@@ -484,6 +479,32 @@ def test_attachment_ignores_a_brief_overload_spike() -> None:
     assert simulation.observations()[0].is_attaching
 
 
+def test_foreign_robot_contact_is_excluded_from_attachment_strain() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 2), "flat"))
+    simulation.step({0: RobotAction(grip=GripAction.ATTACH), 1: RobotAction()})
+    lower_address = int(simulation.model.jnt_qposadr[simulation.root_joint_ids[0]])
+    upper_address = int(simulation.model.jnt_qposadr[simulation.root_joint_ids[1]])
+    simulation.data.qpos[upper_address : upper_address + 3] = simulation.data.qpos[
+        lower_address : lower_address + 3
+    ]
+    simulation.data.qpos[upper_address + 2] += simulation.robot.height_m - 0.0005
+    simulation.data.qvel[:] = 0.0
+    mujoco.mj_forward(simulation.model, simulation.data)
+    for _ in range(10):
+        mujoco.mj_step(simulation.model, simulation.data)
+        simulation.attachments.lock_active_roots()
+        mujoco.mj_forward(simulation.model, simulation.data)
+
+    attachment = simulation.attachments._active[0]
+    assert simulation.attachments._has_foreign_robot_contact(attachment)
+    simulation.attachments._constraint_force = lambda _equality_id: 1.0  # type: ignore[method-assign]
+    for _ in range(30):
+        simulation.attachments.post_physics_step()
+
+    assert simulation.observations()[0].is_attaching
+    assert simulation.observations()[0].strain_value == pytest.approx(0.0)
+
+
 def test_robot_attachment_settles_when_placed_on_another_robot() -> None:
     simulation = Simulation(SceneRequest(RobotGrid(1, 2), "flat"))
     lower_address = int(simulation.model.jnt_qposadr[simulation.root_joint_ids[0]])
@@ -502,7 +523,7 @@ def test_robot_attachment_settles_when_placed_on_another_robot() -> None:
     held = simulation.step({0: RobotAction(), 1: RobotAction(grip=GripAction.ATTACH)})
     overloaded = simulation.step(
         {0: RobotAction(), 1: RobotAction(grip=GripAction.ATTACH)},
-        external_forces_n={1: (0.0, 0.0, 1.0)},
+        external_forces_n={1: (1.0, 0.0, 0.0)},
     )
 
     assert attached.observations[1].is_attaching
