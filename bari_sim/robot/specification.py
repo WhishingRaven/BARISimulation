@@ -35,7 +35,12 @@ class RobotSpecification:
     joint_speed_rad_s: float = radians(180.0)
     joint_kp_nm_rad: float = 0.55
     joint_kd_nms_rad: float = 0.012
-    turn_angle_rad: float = radians(8.0)
+    # The yaw motor is applied while the rear cleat is physically latched.
+    # This is a torque limit, not an imposed orientation increment.
+    turn_torque_nm: float = 0.020
+    turn_speed_rad_s: float = radians(10.0)
+    turn_rate_kp_nms_rad: float = 0.12
+    turn_angle_rad: float = radians(5.0)
     sensor_range_m: float = 1.0
     communication_range_m: float = 0.50
     attachment_contact_tolerance_m: float = 0.012

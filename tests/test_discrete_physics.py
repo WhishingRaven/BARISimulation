@@ -11,8 +11,8 @@ from bari_sim.simulation import SceneRequest, Simulation
 from bari_sim.tasks import RobotGrid
 
 
-def _heading(simulation: Simulation) -> float:
-    rotation = simulation.data.xmat[simulation.root_body_ids[0]].reshape(3, 3)
+def _heading(simulation: Simulation, robot_id: int = 0) -> float:
+    rotation = simulation.data.xmat[simulation.root_body_ids[robot_id]].reshape(3, 3)
     return atan2(rotation[1, 0], rotation[0, 0])
 
 
@@ -99,22 +99,138 @@ def test_locking_unselected_root_prevents_previous_robot_drift() -> None:
     assert simulation.data.qpos[:7] == pytest.approx(pose[:7])
 
 
-def test_turn_rotates_whole_free_body_by_one_tuned_increment() -> None:
+def test_turn_uses_a_rear_cleat_and_yaw_motor_for_smooth_rotation() -> None:
     simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
     simulation.step({0: RobotAction()})
     initial = _heading(simulation)
+    positions: list[np.ndarray] = []
+
+    def capture_frame(current: Simulation) -> bool:
+        positions.append(current.data.xpos[current.root_body_ids[0], :2].copy())
+        return True
+
     simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
-    assert (_heading(simulation) - initial) * 180.0 / pi == pytest.approx(8.0, abs=0.2)
+    simulation.step(
+        {0: RobotAction(MotionAction.TURN_LEFT)}, frame_callback=capture_frame
+    )
+    yaw_change_deg = (_heading(simulation) - initial) * 180.0 / pi
+    rear_latch = simulation.model.equality("robot_0_gait_rear_latch").id
+    assert simulation.data.eq_active[rear_latch]
+    assert simulation.data.ctrl[simulation.turn_actuator_ids[0]] > 0.0
+    assert yaw_change_deg > 0.3
+    assert (
+        max(np.linalg.norm(position - positions[0]) for position in positions) < 0.001
+    )
 
 
-def test_turn_after_curl_keeps_root_translation_in_place() -> None:
+def test_first_turn_is_settled_and_has_no_latch_impulse() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    initial = _heading(simulation)
+
+    simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
+
+    yaw_change_deg = (_heading(simulation) - initial) * 180.0 / pi
+    assert yaw_change_deg == pytest.approx(0.3, abs=0.15)
+    assert simulation.time_s == pytest.approx(0.5)
+
+
+def test_turn_resumes_after_manual_stop() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
+    simulation.halt_motion()
+    simulation.end_turn_sessions()
+    heading = _heading(simulation)
+
+    simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
+
+    assert _heading(simulation) - heading > np.deg2rad(0.1)
+    assert simulation.data.ctrl[simulation.turn_actuator_ids[0]] > 0.0
+
+
+def test_held_turn_repeats_five_degree_increments_without_stopping() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    simulation.step({0: RobotAction()})
+    for _ in range(30):
+        simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
+
+    assert _heading(simulation) * 180.0 / pi > 4.0
+    assert simulation.data.ctrl[simulation.turn_actuator_ids[0]] > 0.0
+
+
+def test_turn_after_curl_begins_physical_flattening() -> None:
     simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
     simulation.step({0: RobotAction()})
     simulation.step({0: RobotAction(MotionAction.CURL_BODY)})
     simulation.halt_motion()
-    pose = simulation.data.qpos.copy()
+    rear_before = simulation._joint_position(0, 0)
     simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
-    assert simulation.data.qpos[:3] == pytest.approx(pose[:3])
+    assert abs(simulation._joint_position(0, 0)) < abs(rear_before)
+
+
+def test_held_turn_flattens_a_curled_rear_then_rotates() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    simulation.step({0: RobotAction(MotionAction.CURL_BODY)})
+    initial_heading = _heading(simulation)
+
+    for _ in range(18):
+        simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
+
+    assert abs(simulation._joint_position(0, 0)) < np.deg2rad(8.0)
+    assert _heading(simulation) - initial_heading > np.deg2rad(0.5)
+
+
+def test_turn_on_another_robot_latches_to_it_and_transfers_reaction() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 2), "flat"))
+    lower_address = int(simulation.model.jnt_qposadr[simulation.root_joint_ids[0]])
+    upper_address = int(simulation.model.jnt_qposadr[simulation.root_joint_ids[1]])
+    simulation.data.qpos[upper_address : upper_address + 3] = simulation.data.qpos[
+        lower_address : lower_address + 3
+    ]
+    simulation.data.qpos[upper_address + 2] = 0.012
+    mujoco.mj_forward(simulation.model, simulation.data)
+    simulation.step({0: RobotAction(), 1: RobotAction()})
+    lower_before = simulation.data.qpos[lower_address : lower_address + 2].copy()
+    upper_before = _heading(simulation, 1)
+
+    for _ in range(3):
+        simulation.step({0: RobotAction(), 1: RobotAction(MotionAction.TURN_LEFT)})
+
+    lower_rear_latch = simulation.model.equality("robot_1_gait_rear_on_0_rear").id
+    assert simulation.data.eq_active[lower_rear_latch]
+    assert _heading(simulation, 1) - upper_before > np.deg2rad(0.8)
+    assert (
+        np.linalg.norm(
+            simulation.data.qpos[lower_address : lower_address + 2] - lower_before
+        )
+        > 0.0001
+    )
+
+
+def test_turn_on_step_top_uses_physical_rear_latch() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "step"))
+    root_address = int(simulation.model.jnt_qposadr[simulation.root_joint_ids[0]])
+    simulation.data.qpos[root_address : root_address + 3] = (0.12, 0.0, 0.0345)
+    mujoco.mj_forward(simulation.model, simulation.data)
+    for _ in range(simulation.physics_steps_per_control):
+        mujoco.mj_step(simulation.model, simulation.data)
+    simulation.data.qvel[:] = 0.0
+    simulation.data.time = 0.0
+    mujoco.mj_forward(simulation.model, simulation.data)
+    simulation.halt_motion()
+    origin = simulation.data.qpos[root_address : root_address + 2].copy()
+    heading = _heading(simulation)
+
+    for _ in range(3):
+        simulation.halt_motion()
+        simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
+
+    rear_latch = simulation.model.equality("robot_0_gait_rear_latch").id
+    assert simulation.data.eq_active[rear_latch]
+    assert _heading(simulation) - heading > np.deg2rad(0.4)
+    assert (
+        np.linalg.norm(simulation.data.qpos[root_address : root_address + 2] - origin)
+        < 0.001
+    )
 
 
 def test_manual_halt_clears_momentum_and_preserves_pose() -> None:

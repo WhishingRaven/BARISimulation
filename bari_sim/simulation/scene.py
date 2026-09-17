@@ -39,6 +39,10 @@ def actuator_name(robot_id: int, hinge: str) -> str:
     return f"robot_{robot_id}_{hinge}_motor"
 
 
+def turn_actuator_name(robot_id: int) -> str:
+    return f"robot_{robot_id}_turn_motor"
+
+
 def spike_site_name(robot_id: int) -> str:
     return f"robot_{robot_id}_spike_site"
 
@@ -219,6 +223,21 @@ class SceneBuilder:
                         ),
                     },
                 )
+            # A free-joint motor with this gear vector applies only world-yaw
+            # torque.  Translation and orientation remain MuJoCo-solved.
+            ET.SubElement(
+                actuators,
+                "motor",
+                {
+                    "name": turn_actuator_name(robot_id),
+                    "joint": f"robot_{robot_id}_root",
+                    "gear": "0 0 0 0 0 1",
+                    "ctrllimited": "true",
+                    "ctrlrange": _numbers(
+                        (-self.robot.turn_torque_nm, self.robot.turn_torque_nm)
+                    ),
+                },
+            )
 
         equality = ET.SubElement(root, "equality")
         equality_common = {
@@ -515,7 +534,13 @@ class SceneBuilder:
                 "rgba": "0 0 0 0",
             },
         )
-        self._add_gait_anchor(rear, robot_id, "rear", -rear_length / 2.0)
+        # Keep the cleat just inside the outline.  An edge-aligned ray can
+        # miss the top face of a robot underneath by floating-point epsilon,
+        # causing a world latch instead of transferring the turn reaction.
+        cleat_inset_m = 0.003
+        self._add_gait_anchor(
+            rear, robot_id, "rear", -rear_length / 2.0 + cleat_inset_m
+        )
 
         middle = ET.SubElement(
             rear,
@@ -583,7 +608,7 @@ class SceneBuilder:
                 "rgba": "0 0 0 0",
             },
         )
-        self._add_gait_anchor(front, robot_id, "front", front_length)
+        self._add_gait_anchor(front, robot_id, "front", front_length - cleat_inset_m)
 
         for target_id in range(self.robot_count):
             if target_id == robot_id:

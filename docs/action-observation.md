@@ -14,8 +14,8 @@ a = (a_motion, a_lift, a_grip)
 |---|---|---|
 | `CURL_BODY` | W | 뒤쪽 관절을 접어 `^` 형상 생성 |
 | `FLATTEN_BODY` | S | 뒤쪽 관절을 펴 `_` 형상 생성 |
-| `TURN_LEFT` | A | 본체 전체를 반시계 방향으로 8° 회전 |
-| `TURN_RIGHT` | D | 본체 전체를 시계 방향으로 8° 회전 |
+| `TURN_LEFT` | A | rear를 실제 pitch actuator로 먼저 펴고, rear cleat를 현재 아래 표면(바닥·step 상판·다른 로봇 상판)에 물린 뒤 yaw motor 토크로 반시계 방향 회전 |
+| `TURN_RIGHT` | D | rear를 실제 pitch actuator로 먼저 펴고, rear cleat를 현재 아래 표면(바닥·step 상판·다른 로봇 상판)에 물린 뒤 yaw motor 토크로 시계 방향 회전 |
 | `STOP` | C | 현재 rear 관절 자세 유지 |
 
 현재 `W_n`의 curl 강도 선택지는 구현하지 않고 하나의 `CURL_BODY`만 제공합니다.

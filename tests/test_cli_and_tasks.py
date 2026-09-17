@@ -4,7 +4,7 @@ import mujoco
 import pytest
 
 from bari_sim.cli import build_parser, main
-from bari_sim.robot import GripAction, RobotAction
+from bari_sim.robot import GripAction, MotionAction, RobotAction
 from bari_sim.simulation import SceneBuilder, SceneRequest, Simulation
 from bari_sim.tasks import (
     DIFFICULTY_VALUES,
@@ -116,6 +116,8 @@ def test_manual_actions_latch_independently() -> None:
     controller.refresh_held_motion({"W"})
     assert controller.take_pending_actions()[0].motion.name == "CURL_BODY"
     controller.refresh_held_motion(set())
+    controller.refresh_held_motion(set())
+    controller.refresh_held_motion(set())
     assert controller.take_halt_request()
     assert controller.take_pending_actions() is None
     controller.handle_key("n")
@@ -123,6 +125,33 @@ def test_manual_actions_latch_independently() -> None:
     assert controller.actions()[1].motion.name == "TURN_RIGHT"
     controller.handle_key("x")
     assert controller.actions()[1].motion.name == "STOP"
+
+
+def test_manual_turn_keydown_starts_continuous_turn() -> None:
+    controller = ManualController(1)
+    controller.handle_key("a")
+    assert controller.take_pending_actions() is not None
+
+    # A/D does not depend on platform held-key polling for its next step.
+    assert controller.take_pending_actions()[0].motion is MotionAction.TURN_LEFT
+    controller.handle_key("c")
+    assert controller.take_pending_actions() is None
+
+
+def test_manual_held_motion_ignores_one_false_poll_but_stops_on_release() -> None:
+    controller = ManualController(1)
+    controller.handle_key("w")
+    assert controller.take_pending_actions() is not None
+
+    controller.refresh_held_motion(set())
+    controller.refresh_held_motion({"W"})
+    assert controller.take_pending_actions()[0].motion is MotionAction.CURL_BODY
+    assert not controller.take_halt_request()
+
+    controller.refresh_held_motion(set())
+    controller.refresh_held_motion(set())
+    controller.refresh_held_motion(set())
+    assert controller.take_halt_request()
 
 
 def test_manual_number_keys_select_robots_one_through_ten() -> None:
@@ -151,7 +180,7 @@ def test_manual_overlay_shows_controls_and_active_action() -> None:
 def test_manual_camera_tightly_frames_one_robot_and_scales_with_formation() -> None:
     single = manual_camera_pose(Simulation(SceneRequest(RobotGrid(1, 1), "flat")))
     swarm = manual_camera_pose(Simulation(SceneRequest(RobotGrid(6, 5), "flat")))
-    assert single.lookat == pytest.approx((0.045, 0.0, 0.0025))
+    assert single.lookat == pytest.approx((0.045, 0.0, 0.0025), abs=1e-6)
     assert single.distance == pytest.approx(0.28)
     assert single.azimuth == 90.0
     assert single.elevation == -65.0

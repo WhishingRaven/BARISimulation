@@ -17,7 +17,7 @@ barisimulation manual --robots '2*5' --environment step --difficulty 2
 | 키 | 동작 |
 |---|---|
 | W / S | curl / flatten |
-| A / D | 본체 전체 좌회전 / 우회전 |
+| A / D | rear를 자동으로 평평하게 만든 뒤 cleat를 아래 지지면에 물린 yaw motor 좌회전 / 우회전. 한 번 누르면 연속 회전을 시작하며 C 또는 다른 물리 조작으로 정지 |
 | C | motion 정지 |
 | R / F | 앞쪽 flap 들기 / 내리기 |
 | Space / X | 가시 attach / detach |

@@ -72,6 +72,10 @@ class GaitAnchorSystem:
         anchor = {
             MotionAction.CURL_BODY: "front",
             MotionAction.FLATTEN_BODY: "rear",
+            # Turning about a rear cleat creates a real pivot without imposing
+            # either a root position or a root orientation.
+            MotionAction.TURN_LEFT: "rear",
+            MotionAction.TURN_RIGHT: "rear",
         }.get(motion)
         for candidate in ("rear", "front"):
             equality_id = self._equality_ids[(robot_id, candidate)]

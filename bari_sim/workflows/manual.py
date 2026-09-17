@@ -117,6 +117,8 @@ class ManualController:
         self._actions = {robot_id: RobotAction() for robot_id in range(robot_count)}
         self._keys: SimpleQueue[str] = SimpleQueue()
         self._held_motion: tuple[int, str] | None = None
+        self._latched_turn: tuple[int, MotionAction] | None = None
+        self._held_key_misses = 0
         self._step_pending = False
         self._halt_requested = False
         self._root_motion_lock_pending = False
@@ -139,6 +141,7 @@ class ManualController:
             selected = 9 if raw_key == "0" else int(raw_key) - 1
             if selected < self.robot_count:
                 self.state.selected_robot_id = selected
+                self._latched_turn = None
                 self.state.message = f"selected robot {selected}"
             return
         if key in {"B", "N"}:
@@ -146,23 +149,39 @@ class ManualController:
             self.state.selected_robot_id = (
                 self.state.selected_robot_id + offset
             ) % self.robot_count
+            self._latched_turn = None
             self.state.message = f"selected robot {self.state.selected_robot_id}"
             return
         robot_id = self.state.selected_robot_id
         current = self._actions[robot_id]
-        if key in _MOTION_KEYS:
+        if key in {"A", "D"}:
             action = RobotAction(_MOTION_KEYS[key], current.lift, current.grip)
+            # Native key-state polling is not reliable in every passive
+            # MuJoCo viewer.  Turn is therefore latched by key-down and runs
+            # until an explicit stop or another physical command.
+            self._held_motion = None
+            self._held_key_misses = 0
+            self._latched_turn = (robot_id, action.motion)
+            self._step_pending = True
+            self.state.message = action.motion.name
+        elif key in {"W", "S"}:
+            action = RobotAction(_MOTION_KEYS[key], current.lift, current.grip)
+            self._latched_turn = None
             if self._held_motion != (robot_id, key):
                 self._held_motion = (robot_id, key)
+                self._held_key_misses = 0
                 self._step_pending = True
             self.state.message = action.motion.name
         elif key == "C":
             action = RobotAction(MotionAction.STOP, current.lift, current.grip)
             self._held_motion = None
+            self._latched_turn = None
+            self._held_key_misses = 0
             self._halt_requested = True
             self.state.message = "STOP"
         elif key == "R":
             action = RobotAction(MotionAction.STOP, LiftAction.LIFT_FRONT, current.grip)
+            self._latched_turn = None
             self._root_motion_lock_pending = True
             self._step_pending = True
             self.state.message = "LIFT_FRONT"
@@ -170,16 +189,19 @@ class ManualController:
             action = RobotAction(
                 MotionAction.STOP, LiftAction.UNLIFT_FRONT, current.grip
             )
+            self._latched_turn = None
             self._root_motion_lock_pending = True
             self._step_pending = True
             self.state.message = "UNLIFT_FRONT"
         elif raw_key == " ":
             action = RobotAction(MotionAction.STOP, current.lift, GripAction.ATTACH)
+            self._latched_turn = None
             self._root_motion_lock_pending = True
             self._step_pending = True
             self.state.message = "ATTACH"
         elif key == "X":
             action = RobotAction(MotionAction.STOP, current.lift, GripAction.DETACH)
+            self._latched_turn = None
             self._root_motion_lock_pending = True
             self._step_pending = True
             self.state.message = "DETACH"
@@ -208,14 +230,24 @@ class ManualController:
             return
         robot_id, key = self._held_motion
         if key not in pressed_keys:
+            # CoreGraphics can report a single false sample while a passive
+            # MuJoCo viewer is syncing.  Require three consecutive misses so
+            # a held A/D or W/S command is not truncated after one step.
+            self._held_key_misses += 1
+            if self._held_key_misses < 3:
+                return
             self._held_motion = None
+            self._held_key_misses = 0
             self._halt_requested = True
-            if not self._step_pending:
-                current = self._actions[robot_id]
-                self._actions[robot_id] = RobotAction(
-                    MotionAction.STOP, current.lift, current.grip
-                )
+            # Cancel a repeat action queued by an earlier in-step poll.  A
+            # released key must not run one additional 0.5-second command.
+            self._step_pending = False
+            current = self._actions[robot_id]
+            self._actions[robot_id] = RobotAction(
+                MotionAction.STOP, current.lift, current.grip
+            )
             return
+        self._held_key_misses = 0
         current = self._actions[robot_id]
         self._actions[robot_id] = RobotAction(
             _MOTION_KEYS[key], current.lift, current.grip
@@ -223,6 +255,11 @@ class ManualController:
         self._step_pending = True
 
     def take_pending_actions(self) -> dict[int, RobotAction] | None:
+        if not self._step_pending and self._latched_turn is not None:
+            robot_id, motion = self._latched_turn
+            current = self._actions[robot_id]
+            self._actions[robot_id] = RobotAction(motion, current.lift, current.grip)
+            self._step_pending = True
         if not self._step_pending:
             return None
         actions = dict(self._actions)
@@ -252,6 +289,8 @@ class ManualController:
             robot_id: RobotAction() for robot_id in range(self.robot_count)
         }
         self._held_motion = None
+        self._latched_turn = None
+        self._held_key_misses = 0
         self._step_pending = False
         self._halt_requested = False
         self._root_motion_lock_pending = False
@@ -262,7 +301,7 @@ class ManualController:
     @staticmethod
     def help_text() -> str:
         return (
-            "W curl | S flatten | A/D turn whole body | C stop | "
+            "Hold W/S curl/flatten | A/D continuous turn | C stop | "
             "R lift front | F lower front | Space attach | X detach | "
             "1-9/0 or B/N select | P pause | Z reset"
         )
@@ -280,7 +319,7 @@ def manual_overlay_text(
     controls = (
         "BARI MANUAL CONTROLS\n"
         "Hold W/S  curl / flatten\n"
-        "Hold A/D  turn left / right\n"
+        "A/D start continuous turn | C stop\n"
         "C stop | R/F lift / lower front\n"
         "Space/X attach / detach\n"
         "B/N previous / next robot\n"
@@ -431,6 +470,7 @@ def run_manual_viewer(simulation: Simulation) -> None:
             if actions is None:
                 if halt_requested:
                     simulation.halt_motion()
+                    simulation.end_turn_sessions()
                     controller.mark_stopped()
                 viewer.sync()
                 _sync_manual_overlay(viewer, controller, simulation)
@@ -440,6 +480,7 @@ def run_manual_viewer(simulation: Simulation) -> None:
 
             def sync_frame(_simulation: Simulation) -> bool:
                 controller.process_keys()
+                controller.refresh_held_motion(key_poller.pressed_motion_keys())
                 shortcut_defaults.restore(viewer)
                 _sync_robot_labels(viewer, simulation)
                 viewer.sync()
@@ -466,6 +507,7 @@ def run_manual_viewer(simulation: Simulation) -> None:
             )
             if halt_requested:
                 simulation.halt_motion()
+                simulation.end_turn_sessions()
                 controller.mark_stopped()
             _sync_manual_overlay(viewer, controller, simulation)
 
