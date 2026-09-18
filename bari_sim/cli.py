@@ -123,15 +123,24 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     _add_grid(manual, default="1*1")
-    manual.add_argument(
-        "--environment", choices=("flat", "gap", "step"), default="flat"
+    manual_scene = manual.add_mutually_exclusive_group()
+    manual_scene.add_argument(
+        "--environment",
+        choices=("flat", "gap", "step"),
+        default=None,
+        help="scene to open: flat, gap, or step",
+    )
+    manual_scene.add_argument(
+        "--task",
+        choices=TASK_CHOICES,
+        help="task to perform manually; selects its matching environment",
     )
     manual.add_argument(
         "--difficulty",
         type=int,
         choices=range(1, 6),
         default=1,
-        help="gap width or step height level; ignored for flat (default: 1)",
+        help="task difficulty level (default: 1)",
     )
 
     train = subparsers.add_parser(
@@ -261,13 +270,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _manual(args: argparse.Namespace) -> int:
     _ensure_mjpython()
-    task = (
-        task_definition(args.environment, args.difficulty)
-        if args.environment in {"gap", "step"}
-        else None
-    )
+    selected = args.task or args.environment or "flat"
+    task = task_definition(selected, args.difficulty) if selected != "flat" else None
+    environment = task.environment if task is not None else selected
     simulation = Simulation(
-        SceneRequest(grid=args.robots, environment=args.environment, task=task)
+        SceneRequest(grid=args.robots, environment=environment, task=task)
     )
     run_manual_viewer(simulation)
     return 0

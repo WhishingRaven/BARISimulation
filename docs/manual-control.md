@@ -12,6 +12,16 @@ barisimulation manual --robots '2*5' --environment gap --difficulty 3
 barisimulation manual --robots '2*5' --environment step --difficulty 2
 ```
 
+task를 직접 수행하려면 `--task`를 사용할 수 있습니다. collision-avoidance의
+실제 환경은 평지(`flat`)입니다.
+
+```bash
+barisimulation manual --robots '1*1' --task collision-avoidance --difficulty 1
+```
+
+`--environment`에는 `flat`, `gap`, `step`을 지정할 수 있으며,
+`--task`와 `--environment`는 동시에 지정하지 마세요.
+
 ## 키
 
 | 키 | 동작 |

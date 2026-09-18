@@ -136,6 +136,26 @@ def test_help_command_and_required_command_shapes(capsys) -> None:
     parser = build_parser()
     manual = parser.parse_args(["manual", "--robots", "1*1", "--environment", "flat"])
     assert manual.robots == RobotGrid(1, 1)
+    task_manual = parser.parse_args(
+        ["manual", "--robots", "1*1", "--task", "collision-avoidance", "--difficulty", "1"]
+    )
+    assert task_manual.task == "collision-avoidance"
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["manual", "--robots", "1*1", "--environment", "collision-avoidance"]
+        )
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "manual",
+                "--robots",
+                "1*1",
+                "--environment",
+                "gap",
+                "--task",
+                "step",
+            ]
+        )
     train = parser.parse_args(
         [
             "train",

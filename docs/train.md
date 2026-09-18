@@ -31,7 +31,7 @@ train_args=(
   --task collision-avoidance      # Required: Task to train
   --difficulty 1                  # Required: Task difficulty (1-5)
   --algorithm cem                 # Optional: Algorithm; default is cem
-  --resume models/cem/base.json    # Optional: start from an existing policy's weights
+  --resume models/cem/base.json   # Optional: start from an existing policy's weights
   --generations 30                # Optional: CEM generations; default is 5
   --population 32                 # Optional: Candidates per generation; default is 8
   --elite-fraction 0.25           # Optional: Elite fraction; default is 0.25

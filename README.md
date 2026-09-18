@@ -32,10 +32,28 @@ python -m pip install -e .
 barisimulation help
 barisimulation help manual
 barisimulation manual --robots '1*1' --environment flat
+barisimulation manual --robots '1*1' --task collision-avoidance --difficulty 1
 barisimulation infer --robots '2*5' --model models/cem/<timestamp>.json --task collision-avoidance
 barisimulation train --robots '2*5' --task collision-avoidance --difficulty 1 --algorithm cem
 barisimulation evaluate --robots '2*5' --task gap --difficulty 1 --model models/cem/<timestamp>.json
 ```
+
+### `manual` 옵션
+
+`manual`은 MuJoCo viewer에서 로봇을 키보드로 직접 조작합니다.
+
+- `--robots M*N`: 로봇 배치입니다. 예를 들어 `'2*5'`는 2행 5열이며, 생략하면 `'1*1'`입니다. zsh에서는 `*`가 확장되지 않도록 따옴표로 감싸세요.
+- `--environment`: 장면을 선택합니다. `flat`, `gap`, `step` 중 하나를 지정할 수 있습니다. 생략하면 `flat`입니다.
+- `--task`: 사람이 수행할 task를 선택합니다. `collision-avoidance`, `gap`, `step` 중 하나이며, 지정하면 해당 task에 맞는 environment가 자동으로 선택됩니다. `--environment`와 동시에 사용할 수 없습니다.
+- `--difficulty`: task 난이도 1부터 5까지입니다. 기본값은 1이며, `--task`를 사용할 때 주로 지정합니다.
+
+예를 들어 collision-avoidance를 직접 수행하려면 다음과 같이 실행합니다.
+
+```bash
+barisimulation manual --robots '1*1' --task collision-avoidance --difficulty 1
+```
+
+키보드 조작법은 [수동 조작 문서](docs/manual-control.md)를 참고하세요.
 
 for more information regarding options, see [train.md](docs/train.md)
 
