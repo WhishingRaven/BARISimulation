@@ -17,11 +17,13 @@ class MotionAction(IntEnum):
 class LiftAction(IntEnum):
     LIFT_FRONT = 0
     UNLIFT_FRONT = 1
+    STOP = 2
 
 
 class GripAction(IntEnum):
     ATTACH = 0
     DETACH = 1
+    STOP = 2
 
 
 @dataclass(frozen=True)

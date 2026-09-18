@@ -91,6 +91,7 @@ def train_policy(
     settings: TrainingSettings,
     *,
     algorithm: str = "cem",
+    resume_policy: LinearPolicy | None = None,
     render: bool = False,
     progress: ProgressCallback | None = None,
 ) -> TrainingSummary:
@@ -107,7 +108,16 @@ def train_policy(
         robots=str(grid),
         seed=settings.seed,
     )
-    initial_parameters = LinearPolicy.idle(metadata).parameters()
+    if resume_policy is not None and resume_policy.metadata.task != task.name.value:
+        raise ValueError(
+            f"resume model task is {resume_policy.metadata.task!r}, "
+            f"not {task.name.value!r}"
+        )
+    initial_parameters = (
+        LinearPolicy.idle(metadata).parameters()
+        if resume_policy is None
+        else resume_policy.parameters()
+    )
     simulation = Simulation(
         SceneRequest(grid=grid, environment=task.environment, task=task)
     )
@@ -136,10 +146,11 @@ def train_policy(
             "mean_F": f"{stats.mean_fitness:.3f}",
             "elite_mean_F": f"{stats.elite_mean_fitness:.3f}",
             "overall_best_F": f"{stats.overall_best_fitness:.3f}",
-            "P_std": f"{stats.parameter_std:.3f}",
+            "PM_std": f"{stats.parameter_std:.3f}",
             **{
                 {
                     "progress_reward": "progress_R",
+                    "success_bonus": "success_B",
                     "cohesion_penalty": "cohesion_P",
                     "time_penalty": "time_P",
                     "collision_penalty": "collision_P",
@@ -150,10 +161,20 @@ def train_policy(
             },
         }
         headers = tuple(fields)
-        widths = tuple(max(len(name), 10) for name in headers)
         if not generation_header_sent[0]:
-            progress(" | ".join(f"{name:<{width}}" for name, width in zip(headers, widths)))
+            widths = tuple(
+                max(
+                    len(header),
+                    len(f"{settings.generations}/{settings.generations}")
+                    if header == "G"
+                    else 8 if header == "PM_std" else 7,
+                )
+                for header in headers
+            )
+            generation_widths.extend(widths)
+            progress(" | ".join(f"{header:<{width}}" for header, width in zip(headers, widths)))
             generation_header_sent[0] = True
+        widths = tuple(generation_widths)
         progress(
             " | ".join(
                 f"{value:>{width}}" for value, width in zip(fields.values(), widths)
@@ -161,6 +182,7 @@ def train_policy(
         )
 
     generation_header_sent = [False]
+    generation_widths: list[int] = []
 
     # Task reward logic stays in tasks/objectives.py; runners only consume fitness.
     result = runner(

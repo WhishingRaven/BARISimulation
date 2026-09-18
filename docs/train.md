@@ -31,6 +31,7 @@ train_args=(
   --task collision-avoidance      # Required: Task to train
   --difficulty 1                  # Required: Task difficulty (1-5)
   --algorithm cem                 # Optional: Algorithm; default is cem
+  --resume models/cem/base.json   # Optional: start from an existing policy's weights
   --generations 30                # Optional: CEM generations; default is 5
   --population 32                 # Optional: Candidates per generation; default is 8
   --elite-fraction 0.25           # Optional: Elite fraction; default is 0.25
@@ -46,6 +47,10 @@ unset train_args
 ```
 
 학습 중 `--render`는 선택 옵션이지만 성능이 크게 느려지므로 보통 생략합니다.
+
+`--resume`를 지정하면 해당 policy JSON의 가중치를 초기 평균으로 사용해 CEM을
+시작합니다. 모델의 task는 현재 `--task`와 같아야 하며, 출력 모델은 현재 학습
+설정의 metadata와 학습 결과로 새로 저장됩니다.
 
 ### 빠른 smoke test
 

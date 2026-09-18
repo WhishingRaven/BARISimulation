@@ -415,6 +415,27 @@ def test_lift_action_can_lock_free_body_pose() -> None:
     ] == pytest.approx(0.0)
 
 
+def test_lift_stop_holds_current_front_joint_position() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    simulation.step({0: RobotAction(lift=LiftAction.LIFT_FRONT)})
+    front_joint = int(simulation.joint_ids[0, 1])
+    front_address = int(simulation.model.jnt_qposadr[front_joint])
+    current_position = float(simulation.data.qpos[front_address])
+
+    simulation._set_action(0, RobotAction(lift=LiftAction.STOP))
+
+    assert simulation._desired_targets[0, 1] == pytest.approx(current_position)
+    assert simulation._limited_targets[0, 1] == pytest.approx(current_position)
+
+
+def test_grip_stop_preserves_attachment_state() -> None:
+    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
+    simulation.step({0: RobotAction(grip=GripAction.ATTACH)})
+    held = simulation.step({0: RobotAction(grip=GripAction.STOP)})
+
+    assert held.observations[0].is_attaching
+
+
 def test_rear_attachment_holds_then_breaks_above_50_grams_force() -> None:
     simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
     simulation.step({0: RobotAction()})

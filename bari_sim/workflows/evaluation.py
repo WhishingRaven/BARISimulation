@@ -69,14 +69,8 @@ def evaluate_policy(
                 "success": "yes" if result.success else "no",
             }
             headers = tuple(fields)
-            widths = tuple(max(len(name), 10) for name in headers)
             if not progress_header_sent:
-                progress(" | ".join(f"{name:<{width}}" for name, width in zip(headers, widths)))
+                progress(" | ".join(headers))
                 progress_header_sent = True
-            progress(
-                " | ".join(
-                    f"{value:>{width}}"
-                    for value, width in zip(fields.values(), widths)
-                )
-            )
+            progress(" | ".join(fields.values()))
     return EvaluationSummary(tuple(results))

@@ -32,16 +32,20 @@ def _print_table(label: str, headers: Sequence[str], rows: Sequence[Sequence[obj
     for row in values:
         for index, value in enumerate(row):
             widths[index] = max(widths[index], len(value))
-    print(f"[{label}]", file=sys.stderr)
     print(
         f"[{label}] "
-        + " | ".join(f"{header:<{width}}" for header, width in zip(headers, widths)),
+        + " | ".join(
+            f"{header:<{width}}" for header, width in zip(headers, widths)
+        ),
         file=sys.stderr,
     )
+    row_indent = " " * (len(label) + 3)
     for row in values:
         print(
-            f"[{label}] "
-            + " | ".join(f"{value:<{width}}" for value, width in zip(row, widths)),
+            row_indent
+            + " | ".join(
+                f"{value:<{width}}" for value, width in zip(row, widths)
+            ),
             file=sys.stderr,
         )
 
@@ -119,15 +123,24 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     _add_grid(manual, default="1*1")
-    manual.add_argument(
-        "--environment", choices=("flat", "gap", "step"), default="flat"
+    manual_scene = manual.add_mutually_exclusive_group()
+    manual_scene.add_argument(
+        "--environment",
+        choices=("flat", "gap", "step"),
+        default=None,
+        help="scene to open: flat, gap, or step",
+    )
+    manual_scene.add_argument(
+        "--task",
+        choices=TASK_CHOICES,
+        help="task to perform manually; selects its matching environment",
     )
     manual.add_argument(
         "--difficulty",
         type=int,
         choices=range(1, 6),
         default=1,
-        help="gap width or step height level; ignored for flat (default: 1)",
+        help="task difficulty level (default: 1)",
     )
 
     train = subparsers.add_parser(
@@ -143,6 +156,11 @@ def build_parser() -> argparse.ArgumentParser:
     _add_difficulty(train, required=True)
     train.add_argument("--algorithm", choices=ALGORITHMS, default="cem")
     train.add_argument("--output", type=Path, help="output model JSON path")
+    train.add_argument(
+        "--resume",
+        type=Path,
+        help="resume CEM from an existing policy model JSON path",
+    )
     train.add_argument("--generations", type=_positive_int, default=5)
     train.add_argument("--population", type=_positive_int, default=8)
     train.add_argument("--elite-fraction", type=_elite_fraction, default=0.25)
@@ -241,7 +259,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "manual":
         return _manual(args)
     if args.command == "train":
-        return _train(args)
+        return _train(args, parser)
     if args.command == "infer":
         return _infer(args, parser)
     if args.command == "evaluate":
@@ -252,27 +270,33 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _manual(args: argparse.Namespace) -> int:
     _ensure_mjpython()
-    task = (
-        task_definition(args.environment, args.difficulty)
-        if args.environment in {"gap", "step"}
-        else None
-    )
+    selected = args.task or args.environment or "flat"
+    task = task_definition(selected, args.difficulty) if selected != "flat" else None
+    environment = task.environment if task is not None else selected
     simulation = Simulation(
-        SceneRequest(grid=args.robots, environment=args.environment, task=task)
+        SceneRequest(grid=args.robots, environment=environment, task=task)
     )
     run_manual_viewer(simulation)
     return 0
 
 
-def _train(args: argparse.Namespace) -> int:
+def _train(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     task = task_definition(args.task, args.difficulty)
     if args.render:
         _ensure_mjpython()
+    resume_policy = None
+    if args.resume is not None:
+        resume_policy = _load_policy(args.resume, args.task, parser)
     output = args.output or _default_model_path(args.algorithm)
     _print_table(
         "options",
         ("algorithm", "task", "difficulty", "robots", "output"),
         ((args.algorithm, task.name.value, task.difficulty, args.robots, output),),
+    )
+    print(
+        "[train] G:= generation, F:= fitness, PM:= paremeter, R:= reward, "
+        "B:= bonus, P:= penalty",
+        file=sys.stderr,
     )
     summary = train_policy(
         args.robots,
@@ -289,8 +313,9 @@ def _train(args: argparse.Namespace) -> int:
             seed=args.seed,
         ),
         algorithm=args.algorithm,
+        resume_policy=resume_policy,
         render=args.render,
-        progress=lambda message: print(f"[train] {message}", file=sys.stderr),
+        progress=lambda message: print(message, file=sys.stderr),
     )
     print(
         json.dumps(summary.as_dict(), indent=2)

@@ -39,9 +39,8 @@ def test_log_fields_keep_values_in_columns(capsys) -> None:
         (("1/30", "-0.807", "-1.139"),),
     )
     assert capsys.readouterr().err == (
-        "[train]\n"
         "[train] generation | best_f | mean_f\n"
-        "[train] 1/30       | -0.807 | -1.139\n"
+        "        1/30       | -0.807 | -1.139\n"
     )
 
 
@@ -137,6 +136,26 @@ def test_help_command_and_required_command_shapes(capsys) -> None:
     parser = build_parser()
     manual = parser.parse_args(["manual", "--robots", "1*1", "--environment", "flat"])
     assert manual.robots == RobotGrid(1, 1)
+    task_manual = parser.parse_args(
+        ["manual", "--robots", "1*1", "--task", "collision-avoidance", "--difficulty", "1"]
+    )
+    assert task_manual.task == "collision-avoidance"
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["manual", "--robots", "1*1", "--environment", "collision-avoidance"]
+        )
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "manual",
+                "--robots",
+                "1*1",
+                "--environment",
+                "gap",
+                "--task",
+                "step",
+            ]
+        )
     train = parser.parse_args(
         [
             "train",
@@ -146,6 +165,8 @@ def test_help_command_and_required_command_shapes(capsys) -> None:
             "gap",
             "--difficulty",
             "3",
+            "--resume",
+            "models/cem/base.json",
         ]
     )
     assert train.difficulty == 3
@@ -154,6 +175,7 @@ def test_help_command_and_required_command_shapes(capsys) -> None:
     assert train.initial_std == 0.75
     assert train.min_std == 0.05
     assert train.episodes_per_candidate == 1
+    assert train.resume.name == "base.json"
     assert not train.render
     infer = parser.parse_args(
         [

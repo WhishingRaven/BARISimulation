@@ -506,11 +506,17 @@ class Simulation:
             )
         if direction != self._turn_directions[robot_id]:
             self._turn_directions[robot_id] = direction
-        self._desired_targets[robot_id, 1] = (
-            self.robot.front_lift_angle_rad
-            if action.lift is LiftAction.LIFT_FRONT
-            else 0.0
-        )
+        if action.lift is LiftAction.LIFT_FRONT:
+            self._desired_targets[robot_id, 1] = self.robot.front_lift_angle_rad
+        elif action.lift is LiftAction.UNLIFT_FRONT:
+            self._desired_targets[robot_id, 1] = 0.0
+        elif action.lift is LiftAction.STOP:
+            position = self._joint_position(robot_id, 1)
+            joint_id = int(self.joint_ids[robot_id, 1])
+            dof_address = int(self.model.jnt_dofadr[joint_id])
+            self._desired_targets[robot_id, 1] = position
+            self._limited_targets[robot_id, 1] = position
+            self.data.qvel[dof_address] = 0.0
 
     def _set_rear_target_if_needed(self, robot_id: int, target: float) -> None:
         """Avoid re-driving a posture that is already reached.
