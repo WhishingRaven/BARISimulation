@@ -5,4 +5,13 @@ __pycache__/
 *.egg-info/
 .DS_Store
 logs/*.csv
-models/generated_*.xml
+
+# Notebook, build, coverage, and type-checker artifacts
+.ipynb_checkpoints/
+build/
+dist/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.pyright/
