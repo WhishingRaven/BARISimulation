@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 
@@ -17,6 +18,37 @@ ROBOT_COLORS = (
     (0.95, 0.74, 0.14, 1.0),
 )
 SEGMENT_BRIGHTNESS = {"rear": 0.78, "middle": 1.0, "front": 1.18}
+# 접촉 설정. 환경변수로 바꿔 가며 시험할 수 있다(코드 수정 불필요).
+#   BARI_CONTACT_PRESET=strict | soft | legacy   (기본 strict)
+#   또는 개별 지정: BARI_CONTACT_SOLREF / _SOLIMP / _MARGIN
+#
+#   strict: 단단하게. 덜 파고들지만 착지에서 튈 수 있다.
+#   soft  : 부드럽게. 튐·떨림이 줄지만 더 파고든다(강제 분리 보정이 한계에서 잡아 준다).
+#   legacy: 이 수정 전의 원래 값.
+#
+# solref[0]은 접촉 복원 시간상수(초)로, 물리 스텝(0.002 s)의 2배 이상이어야 안정적이다.
+# solimp는 (시작 강성, 최대 강성, 폭). 폭이 좁을수록 얕은 침투에서도 곧바로 세게 민다.
+# margin은 닿기 전 미리 접촉을 만들 거리(m).
+# margin은 "접촉을 미리 만들어 두는 거리"이고, 실제로 힘이 생기기 시작하는 기준은
+# (margin - gap)이다.  gap을 margin과 같게 두어야 "닿기 전에는 힘 0, 파고들면 즉시 반응"이
+# 된다.  gap 없이 margin만 주면 떨어져 있어도 서로 밀어내어, 바닥에 결합한 로봇의
+# strain이 한계까지 치솟는다.
+_CONTACT_PRESETS = {
+    "strict": ("0.005 1", "0.95 0.99 0.0005", "0.0015"),
+    "soft": ("0.012 1", "0.90 0.96 0.001", "0.0005"),
+    "legacy": ("0.015 1", "0.9 0.95 0.001", "0"),
+}
+# 기본값은 soft.  strict는 0.5 mm 안에서 강성이 0.95→0.99로 치솟아, 로봇이 서로
+# 올라탈 때 모서리가 닿는 순간 큰 반발을 만들고 기체를 뒤집는다.  겹침은 강성보다
+# engine의 강제 분리 한계로 잡는 편이 이 모델에 맞는다.
+_preset = _CONTACT_PRESETS.get(
+    os.environ.get("BARI_CONTACT_PRESET", "soft").lower(), _CONTACT_PRESETS["soft"]
+)
+CONTACT_SOLREF = os.environ.get("BARI_CONTACT_SOLREF", _preset[0])
+CONTACT_SOLIMP = os.environ.get("BARI_CONTACT_SOLIMP", _preset[1])
+CONTACT_MARGIN = os.environ.get("BARI_CONTACT_MARGIN", _preset[2])
+# 기본값은 margin과 같게. BARI_CONTACT_GAP으로 따로 지정할 수 있다.
+CONTACT_GAP = os.environ.get("BARI_CONTACT_GAP", CONTACT_MARGIN)
 GAP_PIT_DEPTH_M = 0.5   # 틈 아래 받침 바닥 깊이 (m)
 
 
@@ -371,6 +403,10 @@ class SceneBuilder:
         common = {
             "friction": "1.1 0.005 0.0001",
             "condim": "4",
+            "solref": CONTACT_SOLREF,
+            "solimp": CONTACT_SOLIMP,
+            "margin": CONTACT_MARGIN,
+            "gap": CONTACT_GAP,
             "rgba": "0.40 0.44 0.48 1",
             "group": "0",
         }
@@ -752,8 +788,10 @@ class SceneBuilder:
             "mass": "0",
             "friction": "2.0 0.005 0.0001",
             "condim": "4",
-            "solref": "0.015 1",
-            "solimp": "0.9 0.95 0.001",
+            "solref": CONTACT_SOLREF,
+            "solimp": CONTACT_SOLIMP,
+            "margin": CONTACT_MARGIN,
+            "gap": CONTACT_GAP,
             "rgba": _numbers(color),
             # MuJoCo hides geom groups 3-5 by default.  Keep the robots in
             # their own, visible group so every viewer shows them without

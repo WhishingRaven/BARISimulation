@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
@@ -29,6 +30,13 @@ from .scene import (
 from .sensing import SensorSystem
 
 FrameCallback = Callable[["Simulation"], bool | None]
+
+
+def _env_is_on(name: str) -> bool:
+    """Windows에서 값에 따옴표·공백이 섞여도 켜진 것으로 읽는다."""
+
+    value = os.environ.get(name, "").strip().strip("'\"").lower()
+    return value in {"1", "true", "yes", "on", "y"}
 
 
 @dataclass(frozen=True)
@@ -119,6 +127,24 @@ class Simulation:
         self._last_actions = {
             robot_id: RobotAction() for robot_id in range(self.robot_count)
         }
+        if _env_is_on("BARI_STRAIN_DEBUG") or _env_is_on("BARI_CONTACT_DEBUG"):
+            from . import attachments as _attachments_module
+            from . import scene as _scene_module
+
+            margin_m = float(self.model.geom_margin.max())
+            gap_m = float(self.model.geom_gap.max())
+            print(
+                f"[bari] 디버그 출력 켜짐\n"
+                f"       engine.py      : {__file__}\n"
+                f"       attachments.py : {_attachments_module.__file__}\n"
+                f"       scene.py       : {_scene_module.__file__}\n"
+                f"       접촉: margin {margin_m * 1000:.3f} mm, gap {gap_m * 1000:.3f} mm"
+                f"  →  힘이 걸리기 시작하는 거리 {(margin_m - gap_m) * 1000:.3f} mm"
+                + ("   ※ 0 이 아니면 떨어져 있어도 서로 밉니다" if margin_m > gap_m else "")
+                + f"\n       과도구간 {AttachmentManager._ACTIVATION_SETTLE_S * 1000:.0f} ms, "
+                f"게이지 시상수 {AttachmentManager._STRAIN_TAU_S * 1000:.0f} ms",
+                flush=True,
+            )
         mujoco.mj_forward(self.model, self.data)
 
     @property
@@ -206,6 +232,19 @@ class Simulation:
             )
             for robot_id in locked_translations
         }
+        # BARI_POSTURE_LOCK_ALWAYS=1 로 두면 예전(접촉 무시) 동작으로 되돌린다.
+        release_disabled = _env_is_on("BARI_POSTURE_LOCK_ALWAYS")
+        # 접촉만으로 막지 못한 깊은 침투는 이 한계(m)를 넘는 만큼 직접 떼어 놓는다.
+        #
+        # 겹침을 막는 주된 수단은 접촉 강성(scene.py의 solref/solimp)이고, 이
+        # 보정은 눈에 띄는 관통만 잡는 최후의 안전장치다.  한계를 1 mm처럼 좁게
+        # 두면 서로 올라탈 때의 정상적인 눌림까지 침투로 보고 밀어내어, 올라타려는
+        # 로봇을 계속 떠민다.  그래서 기본값을 5 mm로 둔다(로봇 두께 5 mm).
+        # BARI_CONTACT_LIMIT_MM=0 으로 두면 이 보정을 끈다.
+        contact_limit = float(os.environ.get("BARI_CONTACT_LIMIT_MM", "5.0")) / 1000.0
+        worst_overlap = 0.0
+        worst_world_overlap = 0.0
+        corrections = 0
         callback_stride = max(1, round(1.0 / (render_hz * self.timestep_s)))
         wall_start = time.monotonic()
         for executed_steps, physics_index in enumerate(
@@ -218,14 +257,37 @@ class Simulation:
                 for robot_id, force in external_forces_n.items():
                     self.data.xfrc_applied[self.root_body_ids[robot_id], :3] = force
             mujoco.mj_step(self.model, self.data)
+            # Posture holds must never win over a contact with another robot:
+            # restoring the pose would undo the solver's separation and let the
+            # two bodies sink into each other.  Release the hold while touching
+            # and adopt the contact-resolved pose as the new hold.
+            touching = (
+                self._robots_in_foreign_contact()
+                if reached_postures and not release_disabled
+                else frozenset()
+            )
+            # 결합한 로봇의 자세는 구속이 책임진다.  여기서 제어 스텝 시작 시점의
+            # qpos/qvel 을 2 ms마다 다시 써 넣으면, 구속은 그 속도를 매번 취소해야
+            # 하고 그 취소력이 곧바로 수 N(=strain 100)으로 찍힌다.
+            latched = self.attachments.constrained_robots()
             for robot_id, (qpos, qvel) in locked_poses.items():
+                if robot_id in latched:
+                    continue
                 qpos_address = int(
                     self.model.jnt_qposadr[self.root_joint_ids[robot_id]]
                 )
                 dof_address = int(self.model.jnt_dofadr[self.root_joint_ids[robot_id]])
+                if robot_id in reached_postures and robot_id in touching:
+                    locked_poses[robot_id] = (
+                        self.data.qpos[qpos_address : qpos_address + 7].copy(),
+                        np.zeros(6, dtype=np.float64),
+                    )
+                    continue
                 self.data.qpos[qpos_address : qpos_address + 7] = qpos
                 self.data.qvel[dof_address : dof_address + 6] = qvel
             for robot_id, (position, velocity) in locked_positions.items():
+                if robot_id in latched:
+                    continue
                 qpos_address = int(
                     self.model.jnt_qposadr[self.root_joint_ids[robot_id]]
                 )
@@ -234,10 +296,17 @@ class Simulation:
                 self.data.qvel[dof_address : dof_address + 3] = velocity
             if locked_poses or locked_positions:
                 mujoco.mj_forward(self.model, self.data)
-            self.attachments.post_physics_step()
             if self.attachments.lock_active_roots():
                 mujoco.mj_forward(self.model, self.data)
+            if contact_limit > 0.0:
+                corrections += self._separate_deep_contacts(contact_limit, locked_roots)
+            # 스트레인은 자세 고정·강제 분리가 모두 끝난 뒤의 상태에서 읽는다.
+            # 중간 상태에서 읽으면 보정 중의 순간값이 하중으로 둔갑한다.
+            self.attachments.post_physics_step()
             collision_pairs.update(self._robot_collision_pairs())
+            pair_overlap, world_overlap = self._worst_robot_overlap()
+            worst_overlap = min(worst_overlap, pair_overlap)
+            worst_world_overlap = min(worst_world_overlap, world_overlap)
             if frame_callback is not None and (
                 physics_index % callback_stride == 0
                 or physics_index == self.physics_steps_per_control - 1
@@ -250,6 +319,33 @@ class Simulation:
                 if frame_callback(self) is False:
                     break
 
+        if _env_is_on("BARI_STRAIN_DEBUG"):
+            breakdown = self.attachments.strain_breakdown()
+            if breakdown:
+                body = "  ".join(
+                    f"로봇{robot_id}: 구속 {constraint:.3f} N / 외력 {external:.3f} N"
+                    f" / 구속오차 {error * 1000:.2f} mm"
+                    f" → {self.attachments.strain_value(robot_id):5.1f} g"
+                    for robot_id, (constraint, external, error) in sorted(
+                        breakdown.items()
+                    )
+                )
+            else:
+                # 이 제어 스텝 동안 결합이 한 번도 없었다는 뜻이다.  줄 자체는
+                # 찍어서, 설정이 켜졌는지와 결합이 없는지를 구분할 수 있게 한다.
+                body = "결합 없음 (이 스텝 동안 붙은 로봇이 없습니다)"
+            events = self.attachments.event_summary()
+            if events:
+                body += f"   | {events}"
+            print(f"[strain]  t={self.time_s:6.2f}s  {body}", flush=True)
+        if _env_is_on("BARI_CONTACT_DEBUG"):
+            print(
+                f"[contact] t={self.time_s:6.2f}s  로봇끼리 "
+                f"{-worst_overlap * 1000:6.3f} mm  플랫폼 "
+                f"{-worst_world_overlap * 1000:6.3f} mm  강제 분리 {corrections}회  "
+                f"접촉 쌍 {sorted(collision_pairs)}",
+                flush=True,
+            )
         if self.evaluator is not None:
             self.evaluator.update(collision_pairs)
         return StepResult(
@@ -560,6 +656,94 @@ class Simulation:
     @staticmethod
     def _wrapped_angle(angle: float) -> float:
         return float(np.arctan2(np.sin(angle), np.cos(angle)))
+
+    def _robots_in_foreign_contact(self) -> frozenset[int]:
+        """Robot ids that currently touch a different robot."""
+
+        touching: set[int] = set()
+        for contact_index in range(self.data.ncon):
+            contact = self.data.contact[contact_index]
+            first = self.attachments.geom_to_robot.get(int(contact.geom1))
+            second = self.attachments.geom_to_robot.get(int(contact.geom2))
+            if first is None or second is None or first == second:
+                continue
+            touching.add(first)
+            touching.add(second)
+        return frozenset(touching)
+
+    def _separate_deep_contacts(
+        self, limit_m: float, locked_roots: Collection[int]
+    ) -> int:
+        """Push bodies apart when a contact is deeper than ``limit_m``.
+
+        Covers robot-to-robot and robot-to-environment (platform, floor, step)
+        contacts.  The environment never moves, so the robot takes the whole
+        correction there.
+
+        The contact solver is the primary defence; this is a last-resort cap so
+        a single violent step can never leave two bodies visibly merged.
+        """
+
+        # 결합(connect 구속)에 묶인 로봇은 양쪽 모두 손으로 옮기면 안 된다.  한쪽
+        # 끝을 밀어내는 순간 구속 오차가 생기고, 그것을 되돌리려는 힘이 곧바로
+        # strain 한계(100 g)로 찍힌다.  붙은 쪽과 붙인 대상 모두 보정에서 뺀다.
+        frozen = set(locked_roots) | set(self.attachments.constrained_robots())
+        # 한 물리 스텝(2 ms)에 밀어낼 수 있는 최대량 (m).
+        push_limit = float(os.environ.get("BARI_CONTACT_PUSH_MM", "0.5")) / 1000.0
+        corrections = 0
+        for contact_index in range(self.data.ncon):
+            contact = self.data.contact[contact_index]
+            depth = -float(contact.dist) - limit_m
+            if depth <= 0.0:
+                continue
+            first = self.attachments.geom_to_robot.get(int(contact.geom1))
+            second = self.attachments.geom_to_robot.get(int(contact.geom2))
+            if first is None and second is None:
+                continue                      # 환경끼리는 움직일 것이 없다
+            if first is not None and first == second:
+                continue                      # 같은 로봇의 조각끼리는 건드리지 않는다
+            normal = np.asarray(contact.frame[:3], dtype=np.float64)
+            movable = [
+                robot_id
+                for robot_id in (first, second)
+                if robot_id is not None
+                and robot_id not in frozen
+                and not self.attachments.is_attaching(robot_id)
+            ]
+            if not movable:
+                continue
+            # 한 번에 다 밀어내면 그 자체가 순간이동이라 기체가 뒤집힌다.
+            # 매 물리 스텝 조금씩 밀어, 여러 스텝에 걸쳐 빠져나오게 한다.
+            depth = min(depth, push_limit)
+            # 플랫폼·바닥(환경)은 움직이지 않으므로, 로봇 혼자 침투분을 모두 물러난다.
+            share = depth / len(movable)
+            for robot_id in movable:
+                address = int(self.model.jnt_qposadr[self.root_joint_ids[robot_id]])
+                direction = -1.0 if robot_id == first else 1.0
+                self.data.qpos[address : address + 3] += direction * share * normal
+            corrections += 1
+        if corrections:
+            mujoco.mj_forward(self.model, self.data)
+        return corrections
+
+    def _worst_robot_overlap(self) -> tuple[float, float]:
+        """Deepest (robot-robot, robot-environment) contact distance."""
+
+        worst_pair = 0.0
+        worst_world = 0.0
+        for contact_index in range(self.data.ncon):
+            contact = self.data.contact[contact_index]
+            first = self.attachments.geom_to_robot.get(int(contact.geom1))
+            second = self.attachments.geom_to_robot.get(int(contact.geom2))
+            if first is None and second is None:
+                continue
+            if first is not None and first == second:
+                continue
+            if first is None or second is None:
+                worst_world = min(worst_world, float(contact.dist))
+            else:
+                worst_pair = min(worst_pair, float(contact.dist))
+        return worst_pair, worst_world
 
     def _robot_collision_pairs(self) -> set[tuple[int, int]]:
         pairs: set[tuple[int, int]] = set()
