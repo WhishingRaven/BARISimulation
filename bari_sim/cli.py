@@ -8,6 +8,7 @@ import os
 import shutil
 import sys
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .policies import LinearPolicy
@@ -23,6 +24,7 @@ from .workflows import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TASK_CHOICES = tuple(task.value for task in TaskName)
+ALGORITHMS = ("cem",)
 
 
 def _grid_argument(value: str) -> RobotGrid:
@@ -113,11 +115,13 @@ def build_parser() -> argparse.ArgumentParser:
     _add_grid(train)
     _add_task(train)
     _add_difficulty(train, required=True)
+    train.add_argument("--algorithm", choices=ALGORITHMS, default="cem")
     train.add_argument("--output", type=Path, help="output model JSON path")
     train.add_argument("--generations", type=_positive_int, default=5)
     train.add_argument("--population", type=_positive_int, default=8)
     train.add_argument("--duration", type=_positive_float, default=60.0)
     train.add_argument("--seed", type=int, default=7)
+    train.add_argument("--render", action="store_true", help="show each training rollout in MuJoCo")
 
     infer = subparsers.add_parser(
         "infer",
@@ -132,22 +136,26 @@ def build_parser() -> argparse.ArgumentParser:
     _add_difficulty(infer, required=False)
     infer.add_argument("--model", type=Path, required=True)
     infer.add_argument("--duration", type=_positive_float, default=120.0)
-    infer.add_argument("--viewer", action="store_true", help="show live MuJoCo viewer")
+    infer.add_argument(
+        "--render", "--viewer", dest="render", action="store_true",
+        help="show the rollout in MuJoCo",
+    )
 
     evaluate = subparsers.add_parser(
         "evaluate",
         help="evaluate the task metrics without changing the policy",
         description=(
-            "Evaluate a saved policy headlessly. Without --model this reads "
-            "models/<task>.json, which is also the default train output."
+            "Evaluate a saved policy. Specify the model produced by train with "
+            "--model."
         ),
     )
     _add_grid(evaluate)
     _add_task(evaluate)
     _add_difficulty(evaluate, required=True)
-    evaluate.add_argument("--model", type=Path, help="policy JSON path")
+    evaluate.add_argument("--model", type=Path, required=True, help="policy JSON path")
     evaluate.add_argument("--duration", type=_positive_float, default=120.0)
     evaluate.add_argument("--episodes", type=_positive_int, default=1)
+    evaluate.add_argument("--render", action="store_true", help="show each evaluation rollout in MuJoCo")
 
     parser._bari_subparsers = {
         "manual": manual,
@@ -226,7 +234,14 @@ def _manual(args: argparse.Namespace) -> int:
 
 def _train(args: argparse.Namespace) -> int:
     task = task_definition(args.task, args.difficulty)
-    output = args.output or PROJECT_ROOT / "models" / f"{task.name.value}.json"
+    if args.render:
+        _ensure_mjpython()
+    output = args.output or _default_model_path(args.algorithm)
+    print(
+        f"[train] algorithm={args.algorithm} task={task.name.value} "
+        f"difficulty={task.difficulty} robots={args.robots} output={output}",
+        file=sys.stderr,
+    )
     summary = train_policy(
         args.robots,
         task,
@@ -237,6 +252,8 @@ def _train(args: argparse.Namespace) -> int:
             duration_s=args.duration,
             seed=args.seed,
         ),
+        render=args.render,
+        progress=lambda message: print(f"[train] {message}", file=sys.stderr),
     )
     print(
         json.dumps(
@@ -255,7 +272,7 @@ def _infer(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     policy = _load_policy(args.model, args.task, parser)
     difficulty = args.difficulty or policy.metadata.difficulty
     task = task_definition(args.task, difficulty)
-    if args.viewer:
+    if args.render:
         _ensure_mjpython()
     simulation = Simulation(
         SceneRequest(grid=args.robots, environment=task.environment, task=task)
@@ -264,25 +281,44 @@ def _infer(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         simulation,
         policy,
         duration_s=args.duration,
-        viewer_enabled=args.viewer,
+        viewer_enabled=args.render,
+    )
+    print(
+        f"[infer] model={args.model} task={task.name.value} "
+        f"difficulty={task.difficulty} score={float(result.metrics['score']):.3f} "
+        f"success={result.success}",
+        file=sys.stderr,
     )
     print(json.dumps(result.as_dict(), indent=2))
     return 0
 
 
 def _evaluate(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
-    model_path = args.model or PROJECT_ROOT / "models" / f"{args.task}.json"
-    policy = _load_policy(model_path, args.task, parser)
+    policy = _load_policy(args.model, args.task, parser)
     task = task_definition(args.task, args.difficulty)
+    if args.render:
+        _ensure_mjpython()
+    print(
+        f"[evaluate] model={args.model} task={task.name.value} "
+        f"difficulty={task.difficulty} episodes={args.episodes}",
+        file=sys.stderr,
+    )
     summary = evaluate_policy(
         policy,
         args.robots,
         task,
         duration_s=args.duration,
         episodes=args.episodes,
+        render=args.render,
+        progress=lambda message: print(f"[evaluate] {message}", file=sys.stderr),
     )
     print(json.dumps(summary.as_dict(), indent=2))
     return 0
+
+
+def _default_model_path(algorithm: str) -> Path:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    return PROJECT_ROOT / "models" / algorithm / f"{timestamp}.json"
 
 
 def _load_policy(

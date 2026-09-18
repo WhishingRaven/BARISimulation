@@ -32,12 +32,12 @@ python -m pip install -e .
 barisimulation help
 barisimulation help manual
 barisimulation manual --robots '1*1' --environment flat
-barisimulation infer --robots '2*5' --model models/collision-avoidance.json --task collision-avoidance
+barisimulation infer --robots '2*5' --model models/cem/<timestamp>.json --task collision-avoidance
 barisimulation train --robots '2*5' --task gap --difficulty 1
-barisimulation evaluate --robots '2*5' --task gap --difficulty 1
+barisimulation evaluate --robots '2*5' --task gap --difficulty 1 --model models/cem/<timestamp>.json
 ```
 
-`train`의 기본 출력은 `models/<task>.json`이고 `evaluate`는 `--model`이 없을 때 같은 경로를 읽습니다. 학습은 `train`을 직접 실행할 때만 시작됩니다.
+현재 학습 알고리즘은 CEM이며 `--algorithm cem`이 기본값입니다. `train`의 기본 출력은 `models/cem/<UTC 시간>.json`입니다. 시간 기반 모델은 어느 파일을 평가할지 추측할 수 없으므로 `evaluate`에서는 `--model`이 필수입니다. 세 명령 모두 기본적으로 headless로 실행하며, `--render`를 추가하면 MuJoCo 창에서 rollout을 볼 수 있습니다. 진행 로그는 stderr, 최종 결과 JSON은 stdout으로 출력합니다.
 
 ## 문서
 

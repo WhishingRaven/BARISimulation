@@ -15,7 +15,7 @@ barisimulation help evaluate
 barisimulation train --robots '2*5' --task collision-avoidance --difficulty 1
 ```
 
-명시적으로 이 명령을 실행할 때만 policy search가 시작됩니다. 기본 모델 경로는 `models/<task>.json`입니다. 구현된 trainer는 선언된 local observation만 사용하는 공유 linear policy를 cross-entropy method로 탐색합니다.
+명시적으로 이 명령을 실행할 때만 policy search가 시작됩니다. 현재 구현된 알고리즘은 cross-entropy method(CEM)이며, `--algorithm cem`이 기본값입니다. 기본 모델 경로는 `models/cem/<UTC 시간>.json`입니다. 구현된 trainer는 선언된 local observation만 사용하는 공유 linear policy를 CEM으로 탐색합니다. 진행 로그는 stderr, 최종 결과 JSON은 stdout으로 출력됩니다.
 
 긴 실험의 범위는 옵션으로 결정합니다.
 
@@ -28,7 +28,7 @@ barisimulation train \
   --population 32 \
   --duration 120 \
   --seed 7 \
-  --output models/gap-d4.json
+  --output models/cem/gap-d4.json
 ```
 
 ## Infer
@@ -36,29 +36,30 @@ barisimulation train \
 ```bash
 barisimulation infer \
   --robots '4*5' \
-  --model models/gap-d4.json \
+  --model models/cem/gap-d4.json \
   --task gap \
-  --viewer
+  --render
 ```
 
-`--difficulty`을 생략하면 model metadata의 난이도를 사용합니다. `--viewer`가 없으면 headless JSON 결과를 출력합니다.
+`--difficulty`을 생략하면 model metadata의 난이도를 사용합니다. `--render`가 없으면 headless로 실행합니다. `--viewer`는 기존 호환을 위한 `--render`의 별칭입니다.
 
 ## Evaluate
 
 ```bash
-barisimulation evaluate --robots '4*5' --task gap --difficulty 4
+barisimulation evaluate --robots '4*5' --task gap --difficulty 4 --model models/cem/gap-d4.json
 ```
 
-`--model`이 없으면 `models/gap.json`을 읽습니다. 다른 파일은 다음처럼 지정합니다.
+시간 기반으로 저장된 모델 중 무엇을 평가할지 자동으로 정할 수 없으므로 `--model`은 필수입니다.
 
 ```bash
 barisimulation evaluate \
   --robots '4*5' \
   --task gap \
   --difficulty 4 \
-  --model models/gap-d4.json \
+  --model models/cem/gap-d4.json \
   --episodes 5 \
-  --duration 120
+  --duration 120 \
+  --render
 ```
 
 출력 JSON에는 task 성공 여부, 성공 로봇 수/비율, 위치 분산, 충돌, 뒤집힘, task별 치수와 score가 포함됩니다.

@@ -136,6 +136,47 @@ def test_help_command_and_required_command_shapes(capsys) -> None:
         ]
     )
     assert train.difficulty == 3
+    assert train.algorithm == "cem"
+    assert not train.render
+    infer = parser.parse_args(
+        [
+            "infer",
+            "--robots",
+            "2*5",
+            "--task",
+            "gap",
+            "--model",
+            "models/cem/example.json",
+            "--render",
+        ]
+    )
+    assert infer.render
+    evaluate = parser.parse_args(
+        [
+            "evaluate",
+            "--robots",
+            "2*5",
+            "--task",
+            "gap",
+            "--difficulty",
+            "3",
+            "--model",
+            "models/cem/example.json",
+        ]
+    )
+    assert evaluate.model.name == "example.json"
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "evaluate",
+                "--robots",
+                "2*5",
+                "--task",
+                "gap",
+                "--difficulty",
+                "3",
+            ]
+        )
 
 
 def test_manual_actions_latch_independently() -> None:

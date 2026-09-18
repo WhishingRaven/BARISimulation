@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from ..policies import LinearPolicy
 from ..simulation import SceneRequest, Simulation
 from ..tasks import RobotGrid, TaskDefinition, TaskResult
+from .inference import run_inference
+
+ProgressCallback = Callable[[str], None]
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,8 @@ def evaluate_policy(
     *,
     duration_s: float,
     episodes: int = 1,
+    render: bool = False,
+    progress: ProgressCallback | None = None,
 ) -> EvaluationSummary:
     if episodes < 1:
         raise ValueError("episodes must be at least one")
@@ -46,11 +52,18 @@ def evaluate_policy(
         SceneRequest(grid=grid, environment=task.environment, task=task)
     )
     results: list[TaskResult] = []
-    for _episode in range(episodes):
+    for episode in range(episodes):
         simulation.reset()
-        result = simulation.run(
-            lambda _robot_id, observation: policy.act(observation), duration_s
+        result = run_inference(
+            simulation,
+            policy,
+            duration_s=duration_s,
+            viewer_enabled=render,
         )
-        assert result is not None
         results.append(result)
+        if progress is not None:
+            progress(
+                f"episode {episode + 1}/{episodes}: "
+                f"score={float(result.metrics['score']):.3f}, success={result.success}"
+            )
     return EvaluationSummary(tuple(results))

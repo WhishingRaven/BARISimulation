@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -10,6 +11,9 @@ import numpy as np
 from ..policies import LinearPolicy, PolicyMetadata
 from ..simulation import SceneRequest, Simulation
 from ..tasks import RobotGrid, TaskDefinition
+from .inference import run_inference
+
+ProgressCallback = Callable[[str], None]
 
 
 @dataclass(frozen=True)
@@ -43,6 +47,9 @@ def train_policy(
     task: TaskDefinition,
     output: Path,
     settings: TrainingSettings,
+    *,
+    render: bool = False,
+    progress: ProgressCallback | None = None,
 ) -> TrainingSummary:
     """Fit one shared linear policy with the cross-entropy method.
 
@@ -69,7 +76,7 @@ def train_policy(
     best_score = float("-inf")
     generation_bests: list[float] = []
 
-    for _generation in range(settings.generations):
+    for generation in range(settings.generations):
         population = rng.normal(
             mean,
             scale,
@@ -80,14 +87,19 @@ def train_policy(
         for candidate_index, parameters in enumerate(population):
             simulation.reset()
             policy = LinearPolicy.from_parameters(parameters, metadata)
-            result = simulation.run(
-                lambda _robot_id, observation, selected=policy: selected.act(
-                    observation
-                ),
-                settings.duration_s,
+            result = run_inference(
+                simulation,
+                policy,
+                duration_s=settings.duration_s,
+                viewer_enabled=render,
             )
-            assert result is not None
             scores[candidate_index] = float(result.metrics["score"])
+            if progress is not None:
+                progress(
+                    f"generation {generation + 1}/{settings.generations}, "
+                    f"candidate {candidate_index + 1}/{settings.population_size}: "
+                    f"score={scores[candidate_index]:.3f}"
+                )
         ranked = np.argsort(scores)[::-1]
         elites = population[ranked[:elite_count]]
         mean = np.mean(elites, axis=0)
@@ -97,6 +109,11 @@ def train_policy(
         if generation_best > best_score:
             best_score = generation_best
             best_parameters = population[ranked[0]].copy()
+        if progress is not None:
+            progress(
+                f"generation {generation + 1}/{settings.generations} complete: "
+                f"best={generation_best:.3f}, overall_best={best_score:.3f}"
+            )
 
     trained_metadata = replace(metadata, training_score=best_score)
     LinearPolicy.from_parameters(best_parameters, trained_metadata).save(output)
