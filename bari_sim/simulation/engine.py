@@ -398,10 +398,11 @@ class Simulation:
             )
         if direction != self._turn_directions[robot_id]:
             self._turn_directions[robot_id] = direction
-        if action.lift is LiftAction.LIFT_FRONT:
-            self._desired_targets[robot_id, 1] = self.robot.front_lift_angle_rad
-        elif action.lift is LiftAction.UNLIFT_FRONT:
-            self._desired_targets[robot_id, 1] = 0.0
+        self._desired_targets[robot_id, 1] = (
+            self.robot.front_lift_angle_rad
+            if action.lift is LiftAction.LIFT_FRONT
+            else 0.0
+        )
 
     def _set_rear_target_if_needed(self, robot_id: int, target: float) -> None:
         """Avoid re-driving a posture that is already reached.
@@ -436,10 +437,13 @@ class Simulation:
                 if turning
                 else self.robot.joint_kp_nm_rad
             )
+            # Velocity feedback is modelled as implicit joint damping in the
+            # MJCF (see SceneBuilder._add_hinge).  Only the turn posture uses
+            # a different kd; apply just the explicit difference, if any.
             joint_kd = (
-                self.robot.turn_joint_kd_nms_rad
+                self.robot.turn_joint_kd_nms_rad - self.robot.joint_kd_nms_rad
                 if turning
-                else self.robot.joint_kd_nms_rad
+                else 0.0
             )
             joint_torque_limit = (
                 self.robot.turn_joint_torque_nm
@@ -467,18 +471,6 @@ class Simulation:
             target = self._turn_target_headings[robot_id]
             torque = 0.0
             if not np.isnan(target):
-                # A fast flat-ground turn finishes within one policy interval.
-                # On a steeply pitched body (for example while straddling a
-                # step), retain the original torque limit so yaw correction
-                # does not excite the supporting contact into an oscillation.
-                forward = self.data.xmat[self.root_body_ids[robot_id]].reshape(3, 3)[
-                    :, 0
-                ]
-                torque_limit = (
-                    min(self.robot.turn_torque_nm, 0.050)
-                    if abs(forward[2]) > 0.25
-                    else self.robot.turn_torque_nm
-                )
                 error = self._turn_error(robot_id)
                 yaw_rate = self._yaw_rate(robot_id)
                 if (
@@ -504,8 +496,8 @@ class Simulation:
                         np.clip(
                             self.robot.turn_rate_kp_nms_rad
                             * (self._turn_rate_targets[robot_id] - yaw_rate),
-                            -torque_limit,
-                            torque_limit,
+                            -self.robot.turn_torque_nm,
+                            self.robot.turn_torque_nm,
                         )
                     )
             self.data.ctrl[self.turn_actuator_ids[robot_id]] = torque

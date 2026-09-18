@@ -264,19 +264,12 @@ class ManualController:
             return None
         actions = dict(self._actions)
         self._active_actions = dict(actions)
-        # Each field is an action chosen for this control step, not a UI state.
-        # The next step starts from the neutral action unless it receives a new
-        # command (or an intentionally held W/S or A/D motion command).
         self._actions = {
-            robot_id: RobotAction() for robot_id in range(self.robot_count)
+            robot_id: RobotAction(MotionAction.STOP, action.lift, action.grip)
+            for robot_id, action in self._actions.items()
         }
         self._step_pending = False
         return actions
-
-    def has_pending_action(self) -> bool:
-        """Return whether a new command should preempt the running chunk."""
-
-        return self._step_pending
 
     def take_halt_request(self) -> bool:
         requested = self._halt_requested
@@ -290,14 +283,6 @@ class ManualController:
 
     def mark_stopped(self) -> None:
         self._active_actions = dict(self._actions)
-
-    def mark_step_complete(self) -> None:
-        """Show neutral actions after the just-dispatched control step ends."""
-
-        if not self._step_pending:
-            self._active_actions = {
-                robot_id: RobotAction() for robot_id in range(self.robot_count)
-            }
 
     def mark_turn_complete(self, robot_id: int) -> None:
         """Stop reissuing A/D after its five-degree segment has settled."""
@@ -517,10 +502,7 @@ def run_manual_viewer(simulation: Simulation) -> None:
                 shortcut_defaults.restore(viewer)
                 _sync_robot_labels(viewer, simulation)
                 viewer.sync()
-                # A turn can span policy intervals, but a later input must not
-                # wait for it to settle.  End this small render chunk and let
-                # the outer loop dispatch the newly selected action.
-                return viewer.is_running() and not controller.has_pending_action()
+                return viewer.is_running()
 
             # Text updates cross into the viewer thread.  Keep them outside
             # the high-frequency physics/render callback so mouse camera
@@ -541,7 +523,6 @@ def run_manual_viewer(simulation: Simulation) -> None:
                 realtime=True,
                 lock_root_motion=tuple(sorted(locked_robot_ids)),
             )
-            controller.mark_step_complete()
             if (
                 actions[selected_robot_id].motion
                 in {MotionAction.TURN_LEFT, MotionAction.TURN_RIGHT}

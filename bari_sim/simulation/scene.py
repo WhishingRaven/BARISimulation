@@ -17,6 +17,7 @@ ROBOT_COLORS = (
     (0.95, 0.74, 0.14, 1.0),
 )
 SEGMENT_BRIGHTNESS = {"rear": 0.78, "middle": 1.0, "front": 1.18}
+GAP_PIT_DEPTH_M = 0.5   # 틈 아래 받침 바닥 깊이 (m)
 
 
 def _numbers(values: tuple[float, ...]) -> str:
@@ -393,6 +394,20 @@ class SceneBuilder:
                         **common,
                     },
                 )
+            # 틈 아래 받침 바닥: 떨어진 로봇이 끝없이 추락하는 것을 막는다.
+            pit = dict(common)
+            pit.update(
+                {
+                    "name": "environment_gap_pit",
+                    "type": "box",
+                    "pos": _numbers((0.0, 0.0, -GAP_PIT_DEPTH_M - thickness / 2.0)),
+                    "size": _numbers(
+                        (gap_width / 2.0, platform_width / 2.0, thickness / 2.0)
+                    ),
+                    "rgba": "0.30 0.33 0.36 1",
+                }
+            )
+            ET.SubElement(world, "geom", pit)
         else:
             ET.SubElement(
                 world,
@@ -682,7 +697,12 @@ class SceneBuilder:
                 "type": "hinge",
                 "axis": "0 1 0",
                 "range": _numbers((-limit, limit)),
-                "damping": "0.004",
+                # The motor's velocity feedback (kd) is integrated by MuJoCo
+                # as implicit joint damping.  Computing kd*qvel explicitly in
+                # Python is unstable for the 2 cm front flap
+                # (kd*dt/I = 0.012*0.002/1.9e-6 ~ 12.6 > 2) and made the
+                # flap chatter at the physics rate.
+                "damping": f"{0.004 + self.robot.joint_kd_nms_rad:.10g}",
                 "armature": "0.000001",
             },
         )

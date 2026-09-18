@@ -172,7 +172,12 @@ class TaskEvaluator:
             return abs(x - self.scene.target_x_m) <= 0.35 and z >= -self.robot.height_m
         if self.task.name is TaskName.GAP:
             assert self.scene.gap_width_m is not None
-            return x >= self.scene.gap_width_m / 2.0 + self.robot.length_m / 2.0
+            # 받침 바닥 때문에 떨어진 로봇이 건너편 플랫폼 아래에 있을 수 있으므로
+            # 플랫폼 높이에 있는지도 확인한다.
+            return (
+                x >= self.scene.gap_width_m / 2.0 + self.robot.length_m / 2.0
+                and z >= -self.robot.height_m
+            )
         assert self.scene.step_height_m is not None
         return (
             x >= 0.05

@@ -99,7 +99,7 @@ class AttachmentManager:
     def apply_command(self, robot_id: int, command: GripAction) -> None:
         if command is GripAction.DETACH:
             self.detach(robot_id, caused_by_other=False, overloaded=False)
-        elif command is GripAction.ATTACH:
+        else:
             self.attach(robot_id)
 
     def attach(self, robot_id: int) -> bool:
@@ -188,11 +188,7 @@ class AttachmentManager:
     def post_physics_step(self) -> None:
         failures: list[tuple[int, bool]] = []
         for robot_id, attachment in tuple(self._active.items()):
-            constraint_force_n = (
-                0.0
-                if self._has_foreign_robot_contact(attachment)
-                else self._constraint_force(attachment.equality_id)
-            )
+            constraint_force_n = self._constraint_force(attachment.equality_id)
             external_force_n = float(
                 np.linalg.norm(self.data.xfrc_applied[attachment.target_body_id, :3])
             )
@@ -380,33 +376,6 @@ class AttachmentManager:
         if rows.size == 0:
             return 0.0
         return float(np.linalg.norm(np.asarray(self.data.efc_force[rows])))
-
-    def _has_foreign_robot_contact(self, attachment: Attachment) -> bool:
-        """Whether an unconnected robot is pressing this attachment's cluster."""
-
-        connected = {attachment.source_robot_id}
-        changed = True
-        while changed:
-            changed = False
-            for candidate in self._active.values():
-                target = candidate.target_robot_id
-                if target is None:
-                    continue
-                if candidate.source_robot_id in connected and target not in connected:
-                    connected.add(target)
-                    changed = True
-                elif target in connected and candidate.source_robot_id not in connected:
-                    connected.add(candidate.source_robot_id)
-                    changed = True
-        for contact_index in range(self.data.ncon):
-            contact = self.data.contact[contact_index]
-            first = self.geom_to_robot.get(int(contact.geom1))
-            second = self.geom_to_robot.get(int(contact.geom2))
-            if first in connected and second is not None and second not in connected:
-                return True
-            if second in connected and first is not None and first not in connected:
-                return True
-        return False
 
     def _touching_other_robot(self, robot_id: int) -> bool:
         for contact_index in range(self.data.ncon):

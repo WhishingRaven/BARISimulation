@@ -1,0 +1,54 @@
+diff --git a/bari_sim/simulation/scene.py b/bari_sim/simulation/scene.py
+index 1ddb7c9..35a4140 100644
+--- a/bari_sim/simulation/scene.py
++++ b/bari_sim/simulation/scene.py
+@@ -17,6 +17,11 @@ ROBOT_COLORS = (
+     (0.95, 0.74, 0.14, 1.0),
+ )
+ SEGMENT_BRIGHTNESS = {"rear": 0.78, "middle": 1.0, "front": 1.18}
++# Catch floor below the gap.  Without it a robot that falls into the gap keeps
++# accelerating for the rest of the episode, which wastes simulation time and
++# eventually blows up the integrator.  It sits far below the platforms, so it
++# cannot be reached from the platform surface and does not change the task.
++GAP_PIT_DEPTH_M = 0.5
+ 
+ 
+ def _numbers(values: tuple[float, ...]) -> str:
+@@ -393,6 +398,19 @@ class SceneBuilder:
+                         **common,
+                     },
+                 )
++            pit = dict(common)
++            pit.update(
++                {
++                    "name": "environment_gap_pit",
++                    "type": "box",
++                    "pos": _numbers((0.0, 0.0, -GAP_PIT_DEPTH_M - thickness / 2.0)),
++                    "size": _numbers(
++                        (gap_width / 2.0, platform_width / 2.0, thickness / 2.0)
++                    ),
++                    "rgba": "0.30 0.33 0.36 1",
++                }
++            )
++            ET.SubElement(world, "geom", pit)
+         else:
+             ET.SubElement(
+                 world,
+diff --git a/bari_sim/tasks/evaluation.py b/bari_sim/tasks/evaluation.py
+index cc336f5..d64be85 100644
+--- a/bari_sim/tasks/evaluation.py
++++ b/bari_sim/tasks/evaluation.py
+@@ -172,7 +172,12 @@ class TaskEvaluator:
+             return abs(x - self.scene.target_x_m) <= 0.35 and z >= -self.robot.height_m
+         if self.task.name is TaskName.GAP:
+             assert self.scene.gap_width_m is not None
+-            return x >= self.scene.gap_width_m / 2.0 + self.robot.length_m / 2.0
++            # The catch floor below the gap means a fallen robot can end up
++            # under the far platform; require it to be at platform level.
++            return (
++                x >= self.scene.gap_width_m / 2.0 + self.robot.length_m / 2.0
++                and z >= -self.robot.height_m
++            )
+         assert self.scene.step_height_m is not None
+         return (
+             x >= 0.05

@@ -17,20 +17,18 @@ class MotionAction(IntEnum):
 class LiftAction(IntEnum):
     LIFT_FRONT = 0
     UNLIFT_FRONT = 1
-    STOP = 2
 
 
 class GripAction(IntEnum):
     ATTACH = 0
     DETACH = 1
-    STOP = 2
 
 
 @dataclass(frozen=True)
 class RobotAction:
     motion: MotionAction = MotionAction.STOP
-    lift: LiftAction = LiftAction.STOP
-    grip: GripAction = GripAction.STOP
+    lift: LiftAction = LiftAction.UNLIFT_FRONT
+    grip: GripAction = GripAction.DETACH
 
     @classmethod
     def from_indices(cls, motion: int, lift: int, grip: int) -> RobotAction:

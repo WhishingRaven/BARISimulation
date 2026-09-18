@@ -189,33 +189,12 @@ def test_turn_reaches_five_degrees_smoothly_without_a_cleat(
     yaw_change_deg = (_heading(simulation) - initial) * 180.0 / pi
     per_physics_step = np.diff(np.unwrap(headings))
     assert yaw_change_deg == pytest.approx(expected_degrees, abs=0.15)
-    assert max(abs(per_physics_step)) < np.deg2rad(0.25)
+    assert max(abs(per_physics_step)) < np.deg2rad(0.1)
     assert max(abs(np.asarray(torques))) <= simulation.robot.turn_torque_nm
     assert any(abs(torque) > 0.0 for torque in torques)
     for anchor in ("rear", "front"):
         latch = simulation.model.equality(f"robot_0_gait_{anchor}_latch").id
         assert not simulation.data.eq_active[latch]
-
-
-@pytest.mark.parametrize(
-    ("motion", "expected_degrees"),
-    [
-        (MotionAction.TURN_LEFT, 5.0),
-        (MotionAction.TURN_RIGHT, -5.0),
-    ],
-)
-def test_turn_finishes_in_one_control_step(
-    motion: MotionAction, expected_degrees: float
-) -> None:
-    simulation = Simulation(SceneRequest(RobotGrid(1, 1), "flat"))
-    initial = _heading(simulation)
-
-    simulation.step({0: RobotAction(motion)})
-
-    assert simulation.turn_is_settled(0)
-    assert (_heading(simulation) - initial) * 180.0 / pi == pytest.approx(
-        expected_degrees, abs=0.15
-    )
 
 
 def test_turn_keeps_the_same_five_degree_target_until_it_settles() -> None:
@@ -224,14 +203,13 @@ def test_turn_keeps_the_same_five_degree_target_until_it_settles() -> None:
 
     simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
     target = simulation._turn_target_headings[0]
-    assert simulation.turn_is_settled(0)
+    assert not simulation.turn_is_settled(0)
     simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
 
-    assert simulation._turn_target_headings[0] == pytest.approx(
-        target + np.deg2rad(5.0)
-    )
+    assert simulation._turn_target_headings[0] == pytest.approx(target)
+    _finish_turn(simulation, {0: RobotAction(MotionAction.TURN_LEFT)})
     assert (_heading(simulation) - initial) * 180.0 / pi == pytest.approx(
-        10.0, abs=0.15
+        5.0, abs=0.15
     )
 
 
@@ -245,7 +223,7 @@ def test_turn_resumes_after_manual_stop() -> None:
     simulation.step({0: RobotAction(MotionAction.TURN_LEFT)})
 
     assert _heading(simulation) - heading > np.deg2rad(0.1)
-    assert simulation.turn_is_settled(0)
+    assert simulation.data.ctrl[simulation.turn_actuator_ids[0]] > 0.0
 
 
 def test_held_turn_repeats_five_degree_increments_without_stopping() -> None:
@@ -253,8 +231,9 @@ def test_held_turn_repeats_five_degree_increments_without_stopping() -> None:
     initial = _heading(simulation)
     action = {0: RobotAction(MotionAction.TURN_LEFT)}
 
+    _finish_turn(simulation, action)
     simulation.step(action)
-    simulation.step(action)
+    _finish_turn(simulation, action)
 
     assert (_heading(simulation) - initial) * 180.0 / pi == pytest.approx(
         10.0, abs=0.2
@@ -320,7 +299,7 @@ def test_turn_after_ws_input_does_not_shake_or_slide(
 
     yaw_change_deg = (_heading(simulation) - heading) * 180.0 / pi
     assert yaw_change_deg == pytest.approx(expected_degrees, abs=0.2)
-    assert max(abs(np.diff(np.unwrap(headings)))) < np.deg2rad(0.27)
+    assert max(abs(np.diff(np.unwrap(headings)))) < np.deg2rad(0.15)
     assert np.linalg.norm(positions[-1] - positions[0]) < 0.01
     for anchor in ("rear", "front"):
         latch = simulation.model.equality(f"robot_0_gait_{anchor}_latch").id
@@ -358,7 +337,7 @@ def test_turn_reaches_five_degrees_while_supported_by_another_robot() -> None:
     yaw_change_deg = (_heading(simulation, 1) - upper_before) * 180.0 / pi
     assert not simulation.data.eq_active[lower_rear_latch]
     assert yaw_change_deg == pytest.approx(5.0, abs=0.2)
-    assert max(abs(np.diff(np.unwrap(headings)))) < np.deg2rad(0.30)
+    assert max(abs(np.diff(np.unwrap(headings)))) < np.deg2rad(0.2)
 
 
 def test_turn_on_step_top_reaches_five_degrees_without_a_cleat() -> None:
@@ -407,7 +386,7 @@ def test_turn_settles_smoothly_while_straddling_a_step_edge() -> None:
     assert (_heading(simulation) - heading) * 180.0 / pi == pytest.approx(
         5.0, abs=0.25
     )
-    assert max(abs(np.diff(np.unwrap(headings)))) < np.deg2rad(0.40)
+    assert max(abs(np.diff(np.unwrap(headings)))) < np.deg2rad(0.35)
 
 
 def test_manual_halt_clears_momentum_and_preserves_pose() -> None:
@@ -477,32 +456,6 @@ def test_attachment_ignores_a_brief_overload_spike() -> None:
     simulation.data.xfrc_applied[root_body_id, :3] = 0.0
     simulation.attachments.post_physics_step()
     assert simulation.observations()[0].is_attaching
-
-
-def test_foreign_robot_contact_is_excluded_from_attachment_strain() -> None:
-    simulation = Simulation(SceneRequest(RobotGrid(1, 2), "flat"))
-    simulation.step({0: RobotAction(grip=GripAction.ATTACH), 1: RobotAction()})
-    lower_address = int(simulation.model.jnt_qposadr[simulation.root_joint_ids[0]])
-    upper_address = int(simulation.model.jnt_qposadr[simulation.root_joint_ids[1]])
-    simulation.data.qpos[upper_address : upper_address + 3] = simulation.data.qpos[
-        lower_address : lower_address + 3
-    ]
-    simulation.data.qpos[upper_address + 2] += simulation.robot.height_m - 0.0005
-    simulation.data.qvel[:] = 0.0
-    mujoco.mj_forward(simulation.model, simulation.data)
-    for _ in range(10):
-        mujoco.mj_step(simulation.model, simulation.data)
-        simulation.attachments.lock_active_roots()
-        mujoco.mj_forward(simulation.model, simulation.data)
-
-    attachment = simulation.attachments._active[0]
-    assert simulation.attachments._has_foreign_robot_contact(attachment)
-    simulation.attachments._constraint_force = lambda _equality_id: 1.0  # type: ignore[method-assign]
-    for _ in range(30):
-        simulation.attachments.post_physics_step()
-
-    assert simulation.observations()[0].is_attaching
-    assert simulation.observations()[0].strain_value == pytest.approx(0.0)
 
 
 def test_robot_attachment_settles_when_placed_on_another_robot() -> None:

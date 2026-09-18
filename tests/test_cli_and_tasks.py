@@ -6,7 +6,7 @@ import mujoco
 import pytest
 
 from bari_sim.cli import build_parser, main
-from bari_sim.robot import GripAction, LiftAction, MotionAction, RobotAction
+from bari_sim.robot import GripAction, MotionAction, RobotAction
 from bari_sim.simulation import SceneBuilder, SceneRequest, Simulation
 from bari_sim.tasks import (
     DIFFICULTY_VALUES,
@@ -116,12 +116,6 @@ def test_manual_overlay_separates_grip_action_from_attachment_observation() -> N
     assert "ATTACH  possible=" in status
     assert "active=0" in status
 
-    controller.mark_step_complete()
-    _, status_after_step = manual_overlay_text(controller, simulation)
-    assert "MOTION  ● STOP" in status_after_step
-    assert "LIFT    ● STOP" in status_after_step
-    assert "GRIP    ● STOP" in status_after_step
-
 
 def test_help_command_and_required_command_shapes(capsys) -> None:
     assert main(["help"]) == 0
@@ -144,7 +138,7 @@ def test_help_command_and_required_command_shapes(capsys) -> None:
     assert train.difficulty == 3
 
 
-def test_manual_actions_reset_to_neutral_after_each_step() -> None:
+def test_manual_actions_latch_independently() -> None:
     controller = ManualController(2)
     controller.handle_key("r")
     assert controller.actions()[0].motion.name == "STOP"
@@ -153,13 +147,10 @@ def test_manual_actions_reset_to_neutral_after_each_step() -> None:
     controller.handle_key("w")
     action = controller.actions()[0]
     assert action.motion.name == "CURL_BODY"
-    assert action.lift is LiftAction.STOP
-    assert action.grip is GripAction.STOP
-    assert controller.actions()[1].grip is GripAction.STOP
-    dispatched = controller.take_pending_actions()[0]
-    assert dispatched.motion.name == "CURL_BODY"
-    assert dispatched.lift is LiftAction.STOP
-    assert dispatched.grip is GripAction.STOP
+    assert action.lift.name == "LIFT_FRONT"
+    assert action.grip.name == "ATTACH"
+    assert controller.actions()[1].grip.name == "DETACH"
+    assert controller.take_pending_actions()[0].motion.name == "CURL_BODY"
     assert controller.take_pending_actions() is None
     controller.refresh_held_motion({"W"})
     assert controller.take_pending_actions()[0].motion.name == "CURL_BODY"
@@ -191,20 +182,6 @@ def test_manual_turn_keydown_runs_one_segment_then_stops_at_completion() -> None
     assert controller.take_pending_actions()[0].motion is MotionAction.TURN_LEFT
     controller.handle_key("c")
     assert controller.take_pending_actions() is None
-
-
-def test_manual_new_action_preempts_an_in_progress_turn() -> None:
-    controller = ManualController(1)
-    controller.handle_key("a")
-    assert controller.take_pending_actions()[0].motion is MotionAction.TURN_LEFT
-    assert not controller.has_pending_action()
-
-    controller.handle_key("r")
-
-    assert controller.has_pending_action()
-    action = controller.take_pending_actions()[0]
-    assert action.motion is MotionAction.STOP
-    assert action.lift is LiftAction.LIFT_FRONT
 
 
 def test_one_manual_turn_keydown_physically_stops_at_five_degrees() -> None:

@@ -1,0 +1,396 @@
+WARNING Thu Sep 17 13:36:32 2026: Nan, Inf or huge value in QACC at DOF 7. The simulation is unstable. Time = 59.2440.
+
+WARNING Thu Sep 17 15:40:52 2026: Nan, Inf or huge value in QACC at DOF 7. The simulation is unstable. Time = 59.2440.
+
+WARNING Thu Sep 17 15:40:52 2026: Nan, Inf or huge value in QVEL at DOF 3. The simulation is unstable. Time = 59.2480.
+
+WARNING Thu Sep 17 15:40:52 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 59.2500.
+
+WARNING Thu Sep 17 15:40:52 2026: Inertia matrix is too close to singular at DOF 6. Check model. Time = 59.2520.
+
+WARNING Thu Sep 17 15:45:27 2026: Nan, Inf or huge value in QACC at DOF 4. The simulation is unstable. Time = 27.5380.
+
+WARNING Thu Sep 17 15:45:27 2026: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 27.5420.
+
+WARNING Thu Sep 17 15:45:27 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 27.5440.
+
+WARNING Thu Sep 17 15:45:27 2026: Inertia matrix is too close to singular at DOF 5. Check model. Time = 27.5460.
+
+WARNING Thu Sep 17 16:04:16 2026: Nan, Inf or huge value in QACC at DOF 7. The simulation is unstable. Time = 59.2440.
+
+WARNING Thu Sep 17 16:04:16 2026: Nan, Inf or huge value in QVEL at DOF 3. The simulation is unstable. Time = 59.2480.
+
+WARNING Thu Sep 17 16:04:16 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 59.2500.
+
+WARNING Thu Sep 17 16:04:16 2026: Inertia matrix is too close to singular at DOF 6. Check model. Time = 59.2520.
+
+WARNING Thu Sep 17 16:08:34 2026: Nan, Inf or huge value in QACC at DOF 4. The simulation is unstable. Time = 27.5380.
+
+WARNING Thu Sep 17 16:08:34 2026: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 27.5420.
+
+WARNING Thu Sep 17 16:08:34 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 27.5440.
+
+WARNING Thu Sep 17 16:08:34 2026: Inertia matrix is too close to singular at DOF 5. Check model. Time = 27.5460.
+
+WARNING Thu Sep 17 16:27:14 2026: Nan, Inf or huge value in QACC at DOF 7. The simulation is unstable. Time = 59.2440.
+
+WARNING Thu Sep 17 16:27:14 2026: Nan, Inf or huge value in QVEL at DOF 3. The simulation is unstable. Time = 59.2480.
+
+WARNING Thu Sep 17 16:27:14 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 59.2500.
+
+WARNING Thu Sep 17 16:27:14 2026: Inertia matrix is too close to singular at DOF 6. Check model. Time = 59.2520.
+
+WARNING Thu Sep 17 16:31:40 2026: Nan, Inf or huge value in QACC at DOF 4. The simulation is unstable. Time = 27.5380.
+
+WARNING Thu Sep 17 16:31:40 2026: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 27.5420.
+
+WARNING Thu Sep 17 16:31:40 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 27.5440.
+
+WARNING Thu Sep 17 16:31:40 2026: Inertia matrix is too close to singular at DOF 5. Check model. Time = 27.5460.
+
+WARNING Thu Sep 17 16:49:55 2026: Nan, Inf or huge value in QACC at DOF 7. The simulation is unstable. Time = 59.2440.
+
+WARNING Thu Sep 17 16:49:55 2026: Nan, Inf or huge value in QVEL at DOF 3. The simulation is unstable. Time = 59.2480.
+
+WARNING Thu Sep 17 16:49:55 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 59.2500.
+
+WARNING Thu Sep 17 16:49:55 2026: Inertia matrix is too close to singular at DOF 6. Check model. Time = 59.2520.
+
+WARNING Thu Sep 17 16:55:39 2026: Nan, Inf or huge value in QACC at DOF 4. The simulation is unstable. Time = 27.5380.
+
+WARNING Thu Sep 17 16:55:39 2026: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 27.5420.
+
+WARNING Thu Sep 17 16:55:39 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 27.5440.
+
+WARNING Thu Sep 17 16:55:39 2026: Inertia matrix is too close to singular at DOF 5. Check model. Time = 27.5460.
+
+WARNING Thu Sep 17 17:17:14 2026: Nan, Inf or huge value in QACC at DOF 7. The simulation is unstable. Time = 59.2440.
+
+WARNING Thu Sep 17 17:17:14 2026: Nan, Inf or huge value in QVEL at DOF 3. The simulation is unstable. Time = 59.2480.
+
+WARNING Thu Sep 17 17:17:14 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 59.2500.
+
+WARNING Thu Sep 17 17:17:14 2026: Inertia matrix is too close to singular at DOF 6. Check model. Time = 59.2520.
+
+WARNING Thu Sep 17 17:22:52 2026: Nan, Inf or huge value in QACC at DOF 4. The simulation is unstable. Time = 27.5380.
+
+WARNING Thu Sep 17 17:22:52 2026: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 27.5420.
+
+WARNING Thu Sep 17 17:22:52 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 27.5440.
+
+WARNING Thu Sep 17 17:22:52 2026: Inertia matrix is too close to singular at DOF 5. Check model. Time = 27.5460.
+
+WARNING Thu Sep 17 17:42:12 2026: Nan, Inf or huge value in QACC at DOF 7. The simulation is unstable. Time = 59.2440.
+
+WARNING Thu Sep 17 17:42:12 2026: Nan, Inf or huge value in QVEL at DOF 3. The simulation is unstable. Time = 59.2480.
+
+WARNING Thu Sep 17 17:42:12 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 59.2500.
+
+WARNING Thu Sep 17 17:42:12 2026: Inertia matrix is too close to singular at DOF 6. Check model. Time = 59.2520.
+
+WARNING Thu Sep 17 17:46:07 2026: Nan, Inf or huge value in QACC at DOF 4. The simulation is unstable. Time = 27.5380.
+
+WARNING Thu Sep 17 17:46:07 2026: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 27.5420.
+
+WARNING Thu Sep 17 17:46:07 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 27.5440.
+
+WARNING Thu Sep 17 17:46:07 2026: Inertia matrix is too close to singular at DOF 5. Check model. Time = 27.5460.
+
+WARNING Thu Sep 17 18:02:44 2026: Nan, Inf or huge value in QACC at DOF 7. The simulation is unstable. Time = 59.2440.
+
+WARNING Thu Sep 17 18:02:44 2026: Nan, Inf or huge value in QVEL at DOF 3. The simulation is unstable. Time = 59.2480.
+
+WARNING Thu Sep 17 18:02:44 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 59.2500.
+
+WARNING Thu Sep 17 18:02:44 2026: Inertia matrix is too close to singular at DOF 6. Check model. Time = 59.2520.
+
+WARNING Thu Sep 17 18:08:40 2026: Nan, Inf or huge value in QACC at DOF 4. The simulation is unstable. Time = 27.5380.
+
+WARNING Thu Sep 17 18:08:40 2026: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 27.5420.
+
+WARNING Thu Sep 17 18:08:40 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 27.5440.
+
+WARNING Thu Sep 17 18:08:40 2026: Inertia matrix is too close to singular at DOF 5. Check model. Time = 27.5460.
+
+WARNING Thu Sep 17 18:29:53 2026: Nan, Inf or huge value in QACC at DOF 7. The simulation is unstable. Time = 59.2440.
+
+WARNING Thu Sep 17 18:29:53 2026: Nan, Inf or huge value in QVEL at DOF 3. The simulation is unstable. Time = 59.2480.
+
+WARNING Thu Sep 17 18:29:53 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 59.2500.
+
+WARNING Thu Sep 17 18:29:53 2026: Inertia matrix is too close to singular at DOF 6. Check model. Time = 59.2520.
+
+WARNING Thu Sep 17 18:35:35 2026: Nan, Inf or huge value in QACC at DOF 4. The simulation is unstable. Time = 27.5380.
+
+WARNING Thu Sep 17 18:35:35 2026: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 27.5420.
+
+WARNING Thu Sep 17 18:35:35 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 27.5440.
+
+WARNING Thu Sep 17 18:35:35 2026: Inertia matrix is too close to singular at DOF 5. Check model. Time = 27.5460.
+
+WARNING Thu Sep 17 23:11:56 2026: Nan, Inf or huge value in QACC at DOF 4. The simulation is unstable. Time = 27.5380.
+
+WARNING Thu Sep 17 23:11:56 2026: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 27.5420.
+
+WARNING Thu Sep 17 23:11:56 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 27.5440.
+
+WARNING Thu Sep 17 23:11:56 2026: Inertia matrix is too close to singular at DOF 5. Check model. Time = 27.5460.
+
+WARNING Thu Sep 17 23:12:28 2026: Nan, Inf or huge value in QACC at DOF 7. The simulation is unstable. Time = 59.2440.
+
+WARNING Thu Sep 17 23:12:28 2026: Nan, Inf or huge value in QVEL at DOF 3. The simulation is unstable. Time = 59.2480.
+
+WARNING Thu Sep 17 23:12:28 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 59.2500.
+
+WARNING Thu Sep 17 23:12:28 2026: Inertia matrix is too close to singular at DOF 6. Check model. Time = 59.2520.
+
+WARNING Thu Sep 17 23:13:44 2026: Nan, Inf or huge value in QACC at DOF 3. The simulation is unstable. Time = 14.4500.
+
+WARNING Thu Sep 17 23:13:44 2026: Nan, Inf or huge value in QPOS at DOF 1. The simulation is unstable. Time = 14.4540.
+
+WARNING Thu Sep 17 23:13:44 2026: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 14.4540.
+
+WARNING Thu Sep 17 23:13:44 2026: Inertia matrix is too close to singular at DOF 5. Check model. Time = 14.4560.
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:13:44 2026: Nan, Inf or huge value in CTRL at ACTUATOR 0. The simulation is unstable. Time = 14.4580.
+
+WARNING Thu Sep 17 23:14:25 2026: Nan, Inf or huge value in QACC at DOF 3. The simulation is unstable. Time = 26.1560.
+
+WARNING Thu Sep 17 23:14:25 2026: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 26.1600.
+
+WARNING Thu Sep 17 23:14:25 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 26.1620.
+
+WARNING Thu Sep 17 23:14:25 2026: Inertia matrix is too close to singular at DOF 4. Check model. Time = 26.1660.
+
+WARNING Thu Sep 17 23:14:25 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:14:25 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:14:25 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:14:25 2026: Linesearch objective is not convex
+
+WARNING Thu Sep 17 23:14:26 2026: Nan, Inf or huge value in CTRL at ACTUATOR 0. The simulation is unstable. Time = 26.1680.
+
+WARNING Thu Sep 17 23:26:41 2026: Nan, Inf or huge value in QACC at DOF 4. The simulation is unstable. Time = 27.5380.
+
+WARNING Thu Sep 17 23:26:41 2026: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 27.5420.
+
+WARNING Thu Sep 17 23:26:41 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 27.5440.
+
+WARNING Thu Sep 17 23:26:41 2026: Inertia matrix is too close to singular at DOF 5. Check model. Time = 27.5460.
+
+WARNING Thu Sep 17 23:27:22 2026: Nan, Inf or huge value in QACC at DOF 4. The simulation is unstable. Time = 27.5380.
+
+WARNING Thu Sep 17 23:27:22 2026: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 27.5420.
+
+WARNING Thu Sep 17 23:27:22 2026: Nan, Inf or huge value in QPOS at DOF 0. The simulation is unstable. Time = 27.5440.
+
+WARNING Thu Sep 17 23:27:22 2026: Inertia matrix is too close to singular at DOF 5. Check model. Time = 27.5460.
+
+WARNING Fri Sep 18 12:18:43 2026: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 4.1760.
+
+WARNING Fri Sep 18 12:23:36 2026: Nan, Inf or huge value in QACC at DOF 12. The simulation is unstable. Time = 18.6080.
+
+WARNING Fri Sep 18 12:40:22 2026: Nan, Inf or huge value in QACC at DOF 32. The simulation is unstable. Time = 40.8680.
+

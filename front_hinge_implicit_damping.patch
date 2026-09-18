@@ -1,0 +1,38 @@
+diff --git a/bari_sim/simulation/engine.py b/bari_sim/simulation/engine.py
+index d4e5ef8..0ce30cc 100644
+--- a/bari_sim/simulation/engine.py
++++ b/bari_sim/simulation/engine.py
+@@ -436,10 +436,13 @@ class Simulation:
+                 if turning
+                 else self.robot.joint_kp_nm_rad
+             )
++            # Velocity feedback is modelled as implicit joint damping in the
++            # MJCF (see SceneBuilder._add_hinge).  Only the turn posture uses
++            # a different kd; apply just the explicit difference, if any.
+             joint_kd = (
+-                self.robot.turn_joint_kd_nms_rad
++                self.robot.turn_joint_kd_nms_rad - self.robot.joint_kd_nms_rad
+                 if turning
+-                else self.robot.joint_kd_nms_rad
++                else 0.0
+             )
+             joint_torque_limit = (
+                 self.robot.turn_joint_torque_nm
+diff --git a/bari_sim/simulation/scene.py b/bari_sim/simulation/scene.py
+index 92ae1f6..1ddb7c9 100644
+--- a/bari_sim/simulation/scene.py
++++ b/bari_sim/simulation/scene.py
+@@ -682,7 +682,12 @@ class SceneBuilder:
+                 "type": "hinge",
+                 "axis": "0 1 0",
+                 "range": _numbers((-limit, limit)),
+-                "damping": "0.004",
++                # The motor's velocity feedback (kd) is integrated by MuJoCo
++                # as implicit joint damping.  Computing kd*qvel explicitly in
++                # Python is unstable for the 2 cm front flap
++                # (kd*dt/I = 0.012*0.002/1.9e-6 ~ 12.6 > 2) and made the
++                # flap chatter at the physics rate.
++                "damping": f"{0.004 + self.robot.joint_kd_nms_rad:.10g}",
+                 "armature": "0.000001",
+             },
+         )
