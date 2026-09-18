@@ -26,6 +26,26 @@ TASK_CHOICES = tuple(task.value for task in TaskName)
 ALGORITHMS = SUPPORTED_ALGORITHMS
 
 
+def _print_table(label: str, headers: Sequence[str], rows: Sequence[Sequence[object]]) -> None:
+    values = [tuple(str(value) for value in row) for row in rows]
+    widths = [len(header) for header in headers]
+    for row in values:
+        for index, value in enumerate(row):
+            widths[index] = max(widths[index], len(value))
+    print(f"[{label}]", file=sys.stderr)
+    print(
+        f"[{label}] "
+        + " | ".join(f"{header:<{width}}" for header, width in zip(headers, widths)),
+        file=sys.stderr,
+    )
+    for row in values:
+        print(
+            f"[{label}] "
+            + " | ".join(f"{value:<{width}}" for value, width in zip(row, widths)),
+            file=sys.stderr,
+        )
+
+
 def _grid_argument(value: str) -> RobotGrid:
     try:
         return parse_robot_grid(value)
@@ -249,10 +269,10 @@ def _train(args: argparse.Namespace) -> int:
     if args.render:
         _ensure_mjpython()
     output = args.output or _default_model_path(args.algorithm)
-    print(
-        f"[train] algorithm={args.algorithm} task={task.name.value} "
-        f"difficulty={task.difficulty} robots={args.robots} output={output}",
-        file=sys.stderr,
+    _print_table(
+        "options",
+        ("algorithm", "task", "difficulty", "robots", "output"),
+        ((args.algorithm, task.name.value, task.difficulty, args.robots, output),),
     )
     summary = train_policy(
         args.robots,
@@ -293,11 +313,15 @@ def _infer(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         duration_s=args.duration,
         viewer_enabled=args.render,
     )
-    print(
-        f"[infer] model={args.model} task={task.name.value} "
-        f"difficulty={task.difficulty} score={float(result.metrics['score']):.3f} "
-        f"success={result.success}",
-        file=sys.stderr,
+    _print_table(
+        "options",
+        ("task", "difficulty", "robots", "model", "duration"),
+        ((task.name.value, task.difficulty, args.robots, args.model, args.duration),),
+    )
+    _print_table(
+        "infer",
+        ("score", "success"),
+        ((f"{float(result.metrics['score']):.3f}", "yes" if result.success else "no"),),
     )
     print(json.dumps(result.as_dict(), indent=2))
     return 0
@@ -308,10 +332,10 @@ def _evaluate(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     task = task_definition(args.task, args.difficulty)
     if args.render:
         _ensure_mjpython()
-    print(
-        f"[evaluate] model={args.model} task={task.name.value} "
-        f"difficulty={task.difficulty} episodes={args.episodes}",
-        file=sys.stderr,
+    _print_table(
+        "options",
+        ("task", "difficulty", "robots", "model", "episodes", "duration"),
+        ((task.name.value, task.difficulty, args.robots, args.model, args.episodes, args.duration),),
     )
     summary = evaluate_policy(
         policy,

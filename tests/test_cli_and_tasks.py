@@ -5,7 +5,7 @@ from math import atan2, pi
 import mujoco
 import pytest
 
-from bari_sim.cli import build_parser, main
+from bari_sim.cli import _print_table, build_parser, main
 from bari_sim.robot import GripAction, MotionAction, RobotAction
 from bari_sim.simulation import SceneBuilder, SceneRequest, Simulation
 from bari_sim.tasks import (
@@ -30,6 +30,19 @@ def test_robot_grid_parser() -> None:
     assert parse_robot_grid("4x5") == RobotGrid(4, 5)
     with pytest.raises(ValueError):
         parse_robot_grid("10")
+
+
+def test_log_fields_keep_values_in_columns(capsys) -> None:
+    _print_table(
+        "train",
+        ("generation", "best_f", "mean_f"),
+        (("1/30", "-0.807", "-1.139"),),
+    )
+    assert capsys.readouterr().err == (
+        "[train]\n"
+        "[train] generation | best_f | mean_f\n"
+        "[train] 1/30       | -0.807 | -1.139\n"
+    )
 
 
 def test_all_task_difficulties_build_valid_scenes() -> None:

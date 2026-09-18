@@ -52,6 +52,7 @@ def evaluate_policy(
         SceneRequest(grid=grid, environment=task.environment, task=task)
     )
     results: list[TaskResult] = []
+    progress_header_sent = False
     for episode in range(episodes):
         simulation.reset()
         result = run_inference(
@@ -62,8 +63,20 @@ def evaluate_policy(
         )
         results.append(result)
         if progress is not None:
+            fields = {
+                "episode": f"{episode + 1}/{episodes}",
+                "score": f"{float(result.metrics['score']):.3f}",
+                "success": "yes" if result.success else "no",
+            }
+            headers = tuple(fields)
+            widths = tuple(max(len(name), 10) for name in headers)
+            if not progress_header_sent:
+                progress(" | ".join(f"{name:<{width}}" for name, width in zip(headers, widths)))
+                progress_header_sent = True
             progress(
-                f"episode {episode + 1}/{episodes}: "
-                f"score={float(result.metrics['score']):.3f}, success={result.success}"
+                " | ".join(
+                    f"{value:>{width}}"
+                    for value, width in zip(fields.values(), widths)
+                )
             )
     return EvaluationSummary(tuple(results))

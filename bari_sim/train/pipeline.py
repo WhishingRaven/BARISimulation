@@ -130,17 +130,37 @@ def train_policy(
     def report(stats: CEMGenerationStats) -> None:
         if progress is None:
             return
-        components = " ".join(
-            f"{name}={value:.3f}" for name, value in stats.best_components.items()
-        )
+        fields = {
+            "G": f"{stats.generation}/{settings.generations}",
+            "best_F": f"{stats.best_fitness:.3f}",
+            "mean_F": f"{stats.mean_fitness:.3f}",
+            "elite_mean_F": f"{stats.elite_mean_fitness:.3f}",
+            "overall_best_F": f"{stats.overall_best_fitness:.3f}",
+            "P_std": f"{stats.parameter_std:.3f}",
+            **{
+                {
+                    "progress_reward": "progress_R",
+                    "cohesion_penalty": "cohesion_P",
+                    "time_penalty": "time_P",
+                    "collision_penalty": "collision_P",
+                    "flipped_penalty": "flipped_P",
+                    "total_fitness": "total_F",
+                }.get(name, name): f"{value:.3f}"
+                for name, value in stats.best_components.items()
+            },
+        }
+        headers = tuple(fields)
+        widths = tuple(max(len(name), 10) for name in headers)
+        if not generation_header_sent[0]:
+            progress(" | ".join(f"{name:<{width}}" for name, width in zip(headers, widths)))
+            generation_header_sent[0] = True
         progress(
-            f"generation={stats.generation}/{settings.generations} "
-            f"best_fitness={stats.best_fitness:.3f} "
-            f"mean_fitness={stats.mean_fitness:.3f} "
-            f"elite_mean_fitness={stats.elite_mean_fitness:.3f} "
-            f"overall_best_fitness={stats.overall_best_fitness:.3f} "
-            f"parameter_std={stats.parameter_std:.3f} {components}"
+            " | ".join(
+                f"{value:>{width}}" for value, width in zip(fields.values(), widths)
+            )
         )
+
+    generation_header_sent = [False]
 
     # Task reward logic stays in tasks/objectives.py; runners only consume fitness.
     result = runner(
