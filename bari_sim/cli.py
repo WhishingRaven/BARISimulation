@@ -147,6 +147,11 @@ def build_parser() -> argparse.ArgumentParser:
     _add_difficulty(train, required=True)
     train.add_argument("--algorithm", choices=ALGORITHMS, default="cem")
     train.add_argument("--output", type=Path, help="output model JSON path")
+    train.add_argument(
+        "--resume",
+        type=Path,
+        help="resume CEM from an existing policy model JSON path",
+    )
     train.add_argument("--generations", type=_positive_int, default=5)
     train.add_argument("--population", type=_positive_int, default=8)
     train.add_argument("--elite-fraction", type=_elite_fraction, default=0.25)
@@ -245,7 +250,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "manual":
         return _manual(args)
     if args.command == "train":
-        return _train(args)
+        return _train(args, parser)
     if args.command == "infer":
         return _infer(args, parser)
     if args.command == "evaluate":
@@ -268,10 +273,13 @@ def _manual(args: argparse.Namespace) -> int:
     return 0
 
 
-def _train(args: argparse.Namespace) -> int:
+def _train(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     task = task_definition(args.task, args.difficulty)
     if args.render:
         _ensure_mjpython()
+    resume_policy = None
+    if args.resume is not None:
+        resume_policy = _load_policy(args.resume, args.task, parser)
     output = args.output or _default_model_path(args.algorithm)
     _print_table(
         "options",
@@ -298,6 +306,7 @@ def _train(args: argparse.Namespace) -> int:
             seed=args.seed,
         ),
         algorithm=args.algorithm,
+        resume_policy=resume_policy,
         render=args.render,
         progress=lambda message: print(message, file=sys.stderr),
     )

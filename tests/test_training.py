@@ -12,6 +12,7 @@ from bari_sim.tasks import (
     TaskResult,
     task_definition,
 )
+from bari_sim.train import pipeline
 from bari_sim.train.algorithms import CEMSettings, optimize
 from bari_sim.workflows import run_inference
 
@@ -164,3 +165,34 @@ def test_cem_is_seeded_generic_and_averages_episode_fitness() -> None:
     assert first.best_fitness == second.best_fitness
     assert first.best_parameters == pytest.approx(second.best_parameters)
     assert len(first.generations) == 3
+
+
+def test_train_resume_uses_saved_policy_parameters(tmp_path, monkeypatch) -> None:
+    task = task_definition("gap", 1)
+    metadata = PolicyMetadata(task.name.value, task.difficulty, "1*1", 7)
+    parameters = np.linspace(-1.0, 1.0, LinearPolicy.PARAMETER_COUNT)
+    resume_path = tmp_path / "resume.json"
+    LinearPolicy.from_parameters(parameters, metadata).save(resume_path)
+    captured: dict[str, np.ndarray] = {}
+
+    def fake_optimize(initial_parameters, evaluate, settings, *, progress=None):
+        del evaluate, settings, progress
+        captured["initial"] = initial_parameters.copy()
+        return pipeline.CEMResult(
+            best_parameters=initial_parameters.copy(),
+            best_fitness=0.0,
+            best_components={},
+            generations=(),
+        )
+
+    monkeypatch.setattr(pipeline, "optimize", fake_optimize)
+    output = tmp_path / "trained.json"
+    pipeline.train_policy(
+        RobotGrid(1, 1),
+        task,
+        output,
+        pipeline.TrainingSettings(duration_s=0.5),
+        resume_policy=LinearPolicy.load(resume_path),
+    )
+
+    assert captured["initial"] == pytest.approx(parameters)

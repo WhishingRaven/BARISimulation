@@ -145,6 +145,8 @@ def test_help_command_and_required_command_shapes(capsys) -> None:
             "gap",
             "--difficulty",
             "3",
+            "--resume",
+            "models/cem/base.json",
         ]
     )
     assert train.difficulty == 3
@@ -153,6 +155,7 @@ def test_help_command_and_required_command_shapes(capsys) -> None:
     assert train.initial_std == 0.75
     assert train.min_std == 0.05
     assert train.episodes_per_candidate == 1
+    assert train.resume.name == "base.json"
     assert not train.render
     infer = parser.parse_args(
         [

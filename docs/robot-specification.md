@@ -43,14 +43,25 @@ link body에 전달됩니다. 따라서 남는 미세한 solver compliance는 �
 
 ## 초음파 센서
 
-| observation | 위치 | 방향 |
-|---|---|---|
-| `distance1` | 앞쪽 끝 가운데 | 전방 |
-| `distance2` | 앞끝에서 0.04 m 뒤, 밑면 | 아래 |
-| `distance3` | 앞끝에서 0.04 m 뒤, 왼쪽 면 | 왼쪽 |
-| `distance4` | 앞끝에서 0.04 m 뒤, 오른쪽 면 | 오른쪽 |
+| observation | 위치 | 방향 | 최대 거리 |
+|---|---|---|---:|
+| `distance1` | 앞쪽 끝 가운데 | 전방 | 1.00 m |
+| `distance2` | 앞끝에서 0.04 m 뒤, 밑면 | 아래 | 1.00 m |
+| `distance3` | 앞끝에서 0.04 m 뒤, 왼쪽 면 | 왼쪽 | 1.00 m |
+| `distance4` | 앞끝에서 0.04 m 뒤, 오른쪽 면 | 오른쪽 | 1.00 m |
 
-센서는 비가시 ray로 계산하며 별도 충돌 형상이 없습니다. 현재 ray 상한은 1.0 m이고 검출이 없으면 1.0 m를 반환합니다.
+센서는 비가시 ray로 계산하며 별도 충돌 형상이 없습니다. 모든 센서의 최대 측정 거리는 `sensor_range_m = 1.00 m`입니다. 최대 거리 안에서 검출하지 못하면 1.00 m를 반환합니다.
+
+## 로봇 간 통신
+
+로봇은 다른 로봇의 중심 위치가 통신 범위 안에 있을 때 해당 로봇의 ID를 observation에 포함합니다.
+
+| 항목 | 값 |
+|---|---:|
+| 통신 사거리 | `communication_range_m = 0.50 m` |
+| observation 필드 | `nearby_robot_ids` |
+
+통신 사거리 이내의 로봇만 `nearby_robot_ids`에 포함되며, 자기 자신은 포함되지 않습니다.
 
 ## 시뮬레이터 조정값
 
@@ -63,6 +74,7 @@ link body에 전달됩니다. 따라서 남는 미세한 solver compliance는 �
 - curl target: 52°
 - front lift target: 52° 위쪽
 - turn yaw torque: 0.050 N·m, max yaw speed: 20°/s, increment: 5° (cleat 없이 yaw-rate feedback으로 회전)
+- 센서 최대 측정 거리: 1.00 m
 - 로컬 ID 통신 반경: 0.50 m
 
 통신 반경과 센서 최대 거리는 원 사양에 값이 없어서 명시적으로 둔 시뮬레이터 파라미터입니다.

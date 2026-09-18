@@ -91,6 +91,7 @@ def train_policy(
     settings: TrainingSettings,
     *,
     algorithm: str = "cem",
+    resume_policy: LinearPolicy | None = None,
     render: bool = False,
     progress: ProgressCallback | None = None,
 ) -> TrainingSummary:
@@ -107,7 +108,16 @@ def train_policy(
         robots=str(grid),
         seed=settings.seed,
     )
-    initial_parameters = LinearPolicy.idle(metadata).parameters()
+    if resume_policy is not None and resume_policy.metadata.task != task.name.value:
+        raise ValueError(
+            f"resume model task is {resume_policy.metadata.task!r}, "
+            f"not {task.name.value!r}"
+        )
+    initial_parameters = (
+        LinearPolicy.idle(metadata).parameters()
+        if resume_policy is None
+        else resume_policy.parameters()
+    )
     simulation = Simulation(
         SceneRequest(grid=grid, environment=task.environment, task=task)
     )
