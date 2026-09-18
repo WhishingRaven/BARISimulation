@@ -39,9 +39,8 @@ def test_log_fields_keep_values_in_columns(capsys) -> None:
         (("1/30", "-0.807", "-1.139"),),
     )
     assert capsys.readouterr().err == (
-        "[train]\n"
         "[train] generation | best_f | mean_f\n"
-        "[train] 1/30       | -0.807 | -1.139\n"
+        "        1/30       | -0.807 | -1.139\n"
     )
 
 

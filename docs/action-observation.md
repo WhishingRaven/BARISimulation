@@ -30,6 +30,7 @@ Manual 화면의 strain 라벨은 마지막 latch 위치에 계속 남으며, �
 |---|---|---|
 | `LIFT_FRONT` | R | 앞쪽 0.02 m flap을 위로 듦 |
 | `UNLIFT_FRONT` | F | 앞쪽 flap을 원래 자세로 내림 |
+| `STOP` | - | 현재 앞쪽 flap 각도를 유지 |
 
 ### `a_grip`
 
@@ -37,6 +38,7 @@ Manual 화면의 strain 라벨은 마지막 latch 위치에 계속 남으며, �
 |---|---|---|
 | `ATTACH` | Space | 뒤쪽 가시 접촉에 attachment 요청/유지 |
 | `DETACH` | X | attachment 해제; 미부착 기본 출력 |
+| `STOP` | - | 현재 attachment 상태를 유지 |
 
 Policy는 세 component를 매 step 다시 출력합니다. Manual의 W/S는 키를 누르는 동안 반복 출력되고, 키를 놓으면 현재 0.5초 step 뒤 정지합니다. A/D는 한 번의 keydown으로 같은 5° 목표를 정착할 때까지 반복한 뒤 자동 정지합니다. lift와 grip component는 다음 입력까지 유지됩니다.
 

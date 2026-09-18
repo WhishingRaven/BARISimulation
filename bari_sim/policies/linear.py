@@ -44,7 +44,7 @@ class LinearPolicy:
     It intentionally has no access to global pose, target coordinates, or maps.
     """
 
-    VERSION = 1
+    VERSION = 2
     PARAMETER_COUNT = (len(MotionAction) + len(LiftAction) + len(GripAction)) * len(
         FEATURE_NAMES
     )
@@ -109,8 +109,8 @@ class LinearPolicy:
         parameters = np.zeros(cls.PARAMETER_COUNT, dtype=np.float64)
         policy = cls.from_parameters(parameters, metadata)
         policy.motion_weights[int(MotionAction.STOP), 0] = 1.0
-        policy.lift_weights[int(LiftAction.UNLIFT_FRONT), 0] = 1.0
-        policy.grip_weights[int(GripAction.DETACH), 0] = 1.0
+        policy.lift_weights[int(LiftAction.STOP), 0] = 1.0
+        policy.grip_weights[int(GripAction.STOP), 0] = 1.0
         return policy
 
     def save(self, path: Path) -> None:

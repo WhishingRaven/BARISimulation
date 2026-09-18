@@ -32,16 +32,20 @@ def _print_table(label: str, headers: Sequence[str], rows: Sequence[Sequence[obj
     for row in values:
         for index, value in enumerate(row):
             widths[index] = max(widths[index], len(value))
-    print(f"[{label}]", file=sys.stderr)
     print(
         f"[{label}] "
-        + " | ".join(f"{header:<{width}}" for header, width in zip(headers, widths)),
+        + " | ".join(
+            f"{header:<{width}}" for header, width in zip(headers, widths)
+        ),
         file=sys.stderr,
     )
+    row_indent = " " * (len(label) + 3)
     for row in values:
         print(
-            f"[{label}] "
-            + " | ".join(f"{value:<{width}}" for value, width in zip(row, widths)),
+            row_indent
+            + " | ".join(
+                f"{value:<{width}}" for value, width in zip(row, widths)
+            ),
             file=sys.stderr,
         )
 
@@ -274,6 +278,11 @@ def _train(args: argparse.Namespace) -> int:
         ("algorithm", "task", "difficulty", "robots", "output"),
         ((args.algorithm, task.name.value, task.difficulty, args.robots, output),),
     )
+    print(
+        "[train] G:= generation, F:= fitness, PM:= paremeter, R:= reward, "
+        "B:= bonus, P:= penalty",
+        file=sys.stderr,
+    )
     summary = train_policy(
         args.robots,
         task,
@@ -290,7 +299,7 @@ def _train(args: argparse.Namespace) -> int:
         ),
         algorithm=args.algorithm,
         render=args.render,
-        progress=lambda message: print(f"[train] {message}", file=sys.stderr),
+        progress=lambda message: print(message, file=sys.stderr),
     )
     print(
         json.dumps(summary.as_dict(), indent=2)
