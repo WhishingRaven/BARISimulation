@@ -37,7 +37,7 @@ barisimulation train --robots '2*5' --task gap --difficulty 1
 barisimulation evaluate --robots '2*5' --task gap --difficulty 1 --model models/cem/<timestamp>.json
 ```
 
-현재 학습 알고리즘은 CEM이며 `--algorithm cem`이 기본값입니다. `train`의 기본 출력은 `models/cem/<UTC 시간>.json`입니다. 시간 기반 모델은 어느 파일을 평가할지 추측할 수 없으므로 `evaluate`에서는 `--model`이 필수입니다. 세 명령 모두 기본적으로 headless로 실행하며, `--render`를 추가하면 MuJoCo 창에서 rollout을 볼 수 있습니다. 진행 로그는 stderr, 최종 결과 JSON은 stdout으로 출력합니다.
+현재 학습 알고리즘은 CEM이며 `--algorithm cem`이 기본값입니다. `train`의 기본 출력은 `models/cem/<UTC 시간>.json`입니다. `infer`는 기본적으로 모델 metadata에 저장된 학습 난이도를 사용하므로 `--difficulty`가 필수가 아니며, 해당 옵션은 다른 난이도에서 일반화 성능을 확인할 때만 지정합니다. 시간 기반 모델은 어느 파일을 평가할지 추측할 수 없으므로 `evaluate`에서는 `--model`이 필수입니다. 세 명령 모두 기본적으로 headless로 실행하며, `--render`를 추가하면 MuJoCo 창에서 rollout을 볼 수 있습니다. 진행 로그는 stderr, 최종 결과 JSON은 stdout으로 출력합니다.
 
 ## 문서
 
