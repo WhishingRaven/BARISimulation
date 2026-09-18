@@ -14,22 +14,88 @@ sampling하고, episode fitness가 높은 elite로 평균과 표준편차를 갱
 세대에서 가장 좋은 policy를 기존 `infer`와 `evaluate`가 읽는 JSON 형식으로
 저장합니다.
 
-주요 옵션은 다음과 같습니다.
-
-```text
---generations N
---population N
---elite-fraction F
---initial-std S
---min-std S
---episodes-per-candidate N
---duration SECONDS
---seed N
-```
-
 학습은 기본적으로 headless입니다. `--render`는 rollout을 보여주기만 하며
 metric이나 fitness 계산을 바꾸지 않습니다. 같은 seed와 설정은 같은 parameter
 sampling 순서를 사용합니다.
+
+## 명령 예제
+
+아래 block은 zsh에 그대로 복사해 실행할 수 있습니다.
+
+### 실제 CEM 학습
+
+```zsh
+setopt interactivecomments
+train_args=(
+  --robots '2*5'                  # Required: Robot grid (2 rows × 5 columns)
+  --task collision-avoidance      # Required: Task to train
+  --difficulty 1                  # Required: Task difficulty (1-5)
+  --algorithm cem                 # Optional: Algorithm; default is cem
+  --generations 30                # Optional: CEM generations; default is 5
+  --population 32                 # Optional: Candidates per generation; default is 8
+  --elite-fraction 0.25           # Optional: Elite fraction; default is 0.25
+  --initial-std 0.75              # Optional: Initial parameter std; default is 0.75
+  --min-std 0.05                  # Optional: Minimum parameter std; default is 0.05
+  --episodes-per-candidate 1      # Optional: Episodes per candidate; default is 1
+  --duration 120                  # Optional: Episode limit in seconds; default is 60
+  --seed 7                        # Optional: Random seed; default is 7
+  --output models/cem/ca-d1.json  # Optional: Output; default is timestamped JSON
+)
+barisimulation train "${train_args[@]}"
+unset train_args
+```
+
+학습 중 `--render`는 선택 옵션이지만 성능이 크게 느려지므로 보통 생략합니다.
+
+### 빠른 smoke test
+
+Pipeline과 모델 저장이 작동하는지만 짧게 확인합니다. 이 설정으로 유용한 policy가
+학습된다고 기대할 수 없습니다.
+
+```zsh
+setopt interactivecomments
+smoke_args=(
+  --robots '2*5'                      # Required: Robot grid (2 rows × 5 columns)
+  --task collision-avoidance          # Required: Task to train
+  --difficulty 1                      # Required: Task difficulty (1-5)
+  --generations 2                     # Optional: Small generation count for a quick check
+  --population 4                      # Optional: Small population for a quick check
+  --duration 5                        # Optional: Short episode duration for a quick check
+  --output models/cem/smoke-test.json # Optional: Explicit smoke-test model path
+)
+barisimulation train "${smoke_args[@]}"
+unset smoke_args
+```
+
+### 저장한 모델 실행
+
+```zsh
+setopt interactivecomments
+infer_args=(
+  --robots '2*5'                 # Required: Robot grid used for inference
+  --task collision-avoidance     # Required: Task matching the saved model
+  --model models/cem/ca-d1.json  # Required: Saved model path
+  --render                       # Optional: Open viewer; headless when omitted
+)
+barisimulation infer "${infer_args[@]}"
+unset infer_args
+```
+
+### 여러 episode 평가
+
+```zsh
+setopt interactivecomments
+evaluate_args=(
+  --robots '2*5'                 # Required: Robot grid used for evaluation
+  --task collision-avoidance     # Required: Task matching the saved model
+  --difficulty 1                 # Required: Evaluation difficulty (1-5)
+  --model models/cem/ca-d1.json  # Required: Saved model path
+  --episodes 5                   # Optional: Episode count; default is 1
+  --duration 120                 # Optional: Episode limit; default is 120 seconds
+)
+barisimulation evaluate "${evaluate_args[@]}"
+unset evaluate_args
+```
 
 ## collision-avoidance objective
 
