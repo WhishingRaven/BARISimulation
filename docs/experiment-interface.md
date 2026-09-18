@@ -26,10 +26,16 @@ barisimulation train \
   --difficulty 4 \
   --generations 20 \
   --population 32 \
+  --elite-fraction 0.25 \
+  --initial-std 0.75 \
+  --min-std 0.05 \
+  --episodes-per-candidate 2 \
   --duration 120 \
   --seed 7 \
   --output models/cem/gap-d4.json
 ```
+
+세부 학습 구조와 collision-avoidance objective는 [train.md](train.md)를 참고합니다.
 
 ## Infer
 

@@ -3,7 +3,6 @@
 from .evaluation import EvaluationSummary, evaluate_policy
 from .inference import run_inference
 from .manual import ManualController, run_manual_viewer
-from .training import TrainingSettings, TrainingSummary, train_policy
 
 __all__ = [
     "EvaluationSummary",
@@ -15,3 +14,15 @@ __all__ = [
     "run_manual_viewer",
     "train_policy",
 ]
+
+
+def __getattr__(name: str):
+    if name in {"TrainingSettings", "TrainingSummary", "train_policy"}:
+        from ..train import TrainingSettings, TrainingSummary, train_policy
+
+        return {
+            "TrainingSettings": TrainingSettings,
+            "TrainingSummary": TrainingSummary,
+            "train_policy": train_policy,
+        }[name]
+    raise AttributeError(name)

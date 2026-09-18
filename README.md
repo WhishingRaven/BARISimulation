@@ -46,6 +46,7 @@ barisimulation evaluate --robots '2*5' --task gap --difficulty 1 --model models/
 - [Task와 난이도](docs/tasks.md)
 - [수동 조작](docs/manual-control.md)
 - [실험 명령 인터페이스](docs/experiment-interface.md)
+- [학습 pipeline과 CEM](docs/train.md)
 
 ## 디렉터리
 
@@ -55,6 +56,7 @@ bari_sim/
   simulation/  MJCF 장면, 물리 step, 센서, 가시 attachment
   tasks/       난이도 표와 task 성공/평가 지표
   policies/    저장 가능한 decentralized policy
+  train/       task objective와 분리된 학습 pipeline 및 algorithm
   workflows/   manual, train, infer, evaluate 실행 흐름
   cli.py       barisimulation 명령 라우팅
 docs/          로봇·action·task·실험 계약 문서

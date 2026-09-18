@@ -17,8 +17,9 @@
 성공은 모든 로봇이 목표 x 기준 ±0.35 m 안에 도달한 경우입니다. 평가에는 다음 값을 기록합니다.
 
 - 평균 위치 기준 거리 분산 `position_variance_m2`
+- trajectory 전체 평균 위치 분산 `mean_position_variance_m2`
 - 성공까지 걸린 `travel_time_s`
-- 로봇 쌍 충돌 step 수 `collision_count`
+- 지속 접촉을 중복 계산하지 않은 로봇 쌍 충돌 event 수 `collision_count`
 - 뒤집혀 이동 불능이 된 로봇 수 `flipped_immobile_robot_count`
 - 목표 방향 진행률과 남은 거리
 

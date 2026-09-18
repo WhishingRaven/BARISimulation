@@ -137,6 +137,10 @@ def test_help_command_and_required_command_shapes(capsys) -> None:
     )
     assert train.difficulty == 3
     assert train.algorithm == "cem"
+    assert train.elite_fraction == 0.25
+    assert train.initial_std == 0.75
+    assert train.min_std == 0.05
+    assert train.episodes_per_candidate == 1
     assert not train.render
     infer = parser.parse_args(
         [

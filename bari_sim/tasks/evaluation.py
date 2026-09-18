@@ -58,9 +58,14 @@ class TaskEvaluator:
             for robot_id in range(self.robot_count)
             for link in LINK_NAMES
         }
+        initial_mean_position, _ = self._position_metrics(self.global_states())
+        self.initial_mean_x_m = float(initial_mean_position[0])
         self.successful_robot_ids: set[int] = set()
         self.flipped_robot_ids: set[int] = set()
+        self.active_collision_pairs: set[tuple[int, int]] = set()
         self.collision_count = 0
+        self.position_variance_sum_m2 = 0.0
+        self.trajectory_sample_count = 0
         self.completion_time_s: float | None = None
 
     @property
@@ -70,8 +75,12 @@ class TaskEvaluator:
         )
 
     def update(self, collision_pairs: set[tuple[int, int]]) -> None:
-        self.collision_count += len(collision_pairs)
+        self.collision_count += len(collision_pairs - self.active_collision_pairs)
+        self.active_collision_pairs = set(collision_pairs)
         states = self.global_states()
+        _, variance = self._position_metrics(states)
+        self.position_variance_sum_m2 += variance
+        self.trajectory_sample_count += 1
         for state in states:
             if not state.upright:
                 self.flipped_robot_ids.add(state.robot_id)
@@ -107,9 +116,12 @@ class TaskEvaluator:
             else float(self.data.time)
         )
         states = self.global_states()
-        positions = np.asarray([state.position_m[:2] for state in states])
-        mean_position = np.mean(positions, axis=0)
-        variance = float(np.mean(np.sum((positions - mean_position) ** 2, axis=1)))
+        mean_position, variance = self._position_metrics(states)
+        mean_trajectory_variance = (
+            self.position_variance_sum_m2 / self.trajectory_sample_count
+            if self.trajectory_sample_count
+            else variance
+        )
         success_fraction = len(self.successful_robot_ids) / self.robot_count
         common: dict[str, Any] = {
             "robot_count": self.robot_count,
@@ -119,6 +131,7 @@ class TaskEvaluator:
                 self.robot_count
             ),
             "position_variance_m2": variance,
+            "mean_position_variance_m2": mean_trajectory_variance,
             "collision_count": self.collision_count,
             "flipped_immobile_robot_count": len(self.flipped_robot_ids),
             "mean_position_m": [float(mean_position[0]), float(mean_position[1])],
@@ -127,31 +140,17 @@ class TaskEvaluator:
         if self.task.name is TaskName.COLLISION_AVOIDANCE:
             target_x = self.scene.target_x_m
             assert target_x is not None
-            initial_x = self.scene.initial_centroid_x_m
-            denominator = max(target_x - initial_x, 1e-9)
-            progress = float(
-                np.clip((mean_position[0] - initial_x) / denominator, 0.0, 1.0)
-            )
-            remaining = max(0.0, target_x - float(mean_position[0]))
+            initial_distance = max(abs(target_x - self.initial_mean_x_m), 1e-9)
+            remaining = abs(target_x - float(mean_position[0]))
+            progress = (initial_distance - remaining) / initial_distance
             common.update(
                 {
                     "target_x_m": target_x,
+                    "initial_target_distance_m": initial_distance,
                     "distance_remaining_m": remaining,
                     "travel_time_s": elapsed,
                     "progress_fraction": progress,
-                    "score": (
-                        progress
-                        - min(1.0, variance) * 0.20
-                        - self.collision_count / max(1, self.robot_count) * 0.01
-                        - len(self.flipped_robot_ids) / self.robot_count * 0.30
-                    ),
                 }
-            )
-        else:
-            common["score"] = (
-                success_fraction
-                - self.collision_count / max(1, self.robot_count) * 0.005
-                - len(self.flipped_robot_ids) / self.robot_count * 0.20
             )
         return TaskResult(
             task=self.task.name.value,
@@ -160,6 +159,15 @@ class TaskEvaluator:
             elapsed_time_s=float(elapsed),
             metrics=common,
         )
+
+    @staticmethod
+    def _position_metrics(
+        states: tuple[GlobalRobotState, ...],
+    ) -> tuple[np.ndarray, float]:
+        positions = np.asarray([state.position_m[:2] for state in states])
+        mean_position = np.mean(positions, axis=0)
+        variance = float(np.mean(np.sum((positions - mean_position) ** 2, axis=1)))
+        return mean_position, variance
 
     def _robot_succeeded(self, state: GlobalRobotState) -> bool:
         x, y, z = state.position_m

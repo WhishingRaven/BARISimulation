@@ -7,3 +7,4 @@
 3. [tasks.md](tasks.md): 세 task, 난이도, 성공 조건, 지표
 4. [manual-control.md](manual-control.md): 키보드 hold 조작과 latch 동작
 5. [experiment-interface.md](experiment-interface.md): train/infer/evaluate 명령
+6. [train.md](train.md): 학습 pipeline, CEM, task objective

@@ -8,23 +8,22 @@ import os
 import shutil
 import sys
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .policies import LinearPolicy
 from .simulation import SceneRequest, Simulation
 from .tasks import RobotGrid, TaskName, parse_robot_grid, task_definition
+from .train import SUPPORTED_ALGORITHMS, TrainingSettings, train_policy
 from .workflows import (
-    TrainingSettings,
     evaluate_policy,
     run_inference,
     run_manual_viewer,
-    train_policy,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TASK_CHOICES = tuple(task.value for task in TaskName)
-ALGORITHMS = ("cem",)
+ALGORITHMS = SUPPORTED_ALGORITHMS
 
 
 def _grid_argument(value: str) -> RobotGrid:
@@ -45,6 +44,13 @@ def _positive_int(value: str) -> int:
     parsed = int(value)
     if parsed < 1:
         raise argparse.ArgumentTypeError("value must be at least one")
+    return parsed
+
+
+def _elite_fraction(value: str) -> float:
+    parsed = float(value)
+    if not 0.0 < parsed <= 0.5:
+        raise argparse.ArgumentTypeError("value must be in (0, 0.5]")
     return parsed
 
 
@@ -119,6 +125,12 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--output", type=Path, help="output model JSON path")
     train.add_argument("--generations", type=_positive_int, default=5)
     train.add_argument("--population", type=_positive_int, default=8)
+    train.add_argument("--elite-fraction", type=_elite_fraction, default=0.25)
+    train.add_argument("--initial-std", type=_positive_float, default=0.75)
+    train.add_argument("--min-std", type=_positive_float, default=0.05)
+    train.add_argument(
+        "--episodes-per-candidate", type=_positive_int, default=1
+    )
     train.add_argument("--duration", type=_positive_float, default=60.0)
     train.add_argument("--seed", type=int, default=7)
     train.add_argument("--render", action="store_true", help="show each training rollout in MuJoCo")
@@ -249,21 +261,19 @@ def _train(args: argparse.Namespace) -> int:
         TrainingSettings(
             generations=args.generations,
             population_size=args.population,
+            elite_fraction=args.elite_fraction,
+            initial_std=args.initial_std,
+            min_std=args.min_std,
+            evaluation_episodes=args.episodes_per_candidate,
             duration_s=args.duration,
             seed=args.seed,
         ),
+        algorithm=args.algorithm,
         render=args.render,
         progress=lambda message: print(f"[train] {message}", file=sys.stderr),
     )
     print(
-        json.dumps(
-            {
-                "model": str(summary.model_path.resolve()),
-                "best_score": summary.best_score,
-                "generation_best_scores": summary.generation_best_scores,
-            },
-            indent=2,
-        )
+        json.dumps(summary.as_dict(), indent=2)
     )
     return 0
 
@@ -317,7 +327,7 @@ def _evaluate(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
 
 def _default_model_path(algorithm: str) -> Path:
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     return PROJECT_ROOT / "models" / algorithm / f"{timestamp}.json"
 
 

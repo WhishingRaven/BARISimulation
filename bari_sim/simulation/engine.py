@@ -14,6 +14,7 @@ from ..robot.actions import GripAction, LiftAction, MotionAction, RobotAction
 from ..robot.observation import RobotObservation
 from ..robot.specification import DEFAULT_ROBOT, RobotSpecification
 from ..tasks.evaluation import TaskEvaluator, TaskResult
+from ..tasks.objectives import score_task_result
 from .attachments import AttachmentEvent, AttachmentManager
 from .gait_anchors import GaitAnchorSystem
 from .scene import (
@@ -59,15 +60,7 @@ class Simulation:
             raise ValueError(
                 "control interval must be an integer number of physics steps"
             )
-        # Spawn poses leave a small clearance for the body collision geoms.
-        # Let gravity/contact settle that clearance before accepting a manual
-        # latch command; otherwise the first equality activation corrects the
-        # entire gap in one step and produces a large, one-off yaw impulse.
-        for _ in range(self.physics_steps_per_control):
-            mujoco.mj_step(self.model, self.data)
-        self.data.qvel[:] = 0.0
-        self.data.time = 0.0
-        mujoco.mj_forward(self.model, self.data)
+        self._settle_initial_pose()
 
         self.root_body_ids = tuple(
             self.model.body(body_name(robot_id, "rear")).id
@@ -297,7 +290,14 @@ class Simulation:
                 # Viewer closure is handled inside step.  A closed viewer makes
                 # the next callback return false without mutating policy state.
                 pass
-        return None if self.evaluator is None else self.evaluator.result()
+        if self.evaluator is None:
+            return None
+        assert self.request.task is not None
+        return score_task_result(
+            self.evaluator.result(),
+            self.request.task,
+            episode_time_limit_s=duration_s,
+        )
 
     def reset(self) -> Mapping[int, RobotObservation]:
         mujoco.mj_resetData(self.model, self.data)
@@ -311,12 +311,24 @@ class Simulation:
         self._last_actions = {
             robot_id: RobotAction() for robot_id in range(self.robot_count)
         }
-        mujoco.mj_forward(self.model, self.data)
+        self._settle_initial_pose()
         if self.request.task is not None:
             self.evaluator = TaskEvaluator(
                 self.request.task, self.scene, self.model, self.data, self.robot
             )
         return self.observations()
+
+    def _settle_initial_pose(self) -> None:
+        """Apply the same contact settling on construction and every reset."""
+
+        # Spawn poses leave a small clearance for the body collision geoms.
+        # Settling it avoids a one-off impulse and keeps training rollouts
+        # identical to fresh inference simulations.
+        for _ in range(self.physics_steps_per_control):
+            mujoco.mj_step(self.model, self.data)
+        self.data.qvel[:] = 0.0
+        self.data.time = 0.0
+        mujoco.mj_forward(self.model, self.data)
 
     def halt_motion(self) -> None:
         """Freeze the current pose at a manual-control action boundary."""

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ..policies import LinearPolicy
 from ..simulation import Simulation
-from ..tasks import TaskResult
+from ..tasks import TaskResult, score_task_result
 
 
 def run_inference(
@@ -48,4 +48,9 @@ def run_inference(
             if simulation.evaluator is not None and simulation.evaluator.complete:
                 break
     assert simulation.evaluator is not None
-    return simulation.evaluator.result()
+    assert simulation.request.task is not None
+    return score_task_result(
+        simulation.evaluator.result(),
+        simulation.request.task,
+        episode_time_limit_s=duration_s,
+    )
