@@ -6,12 +6,12 @@
 
 | Observation | 의미 | Policy feature | LinearPolicy 입력값 계산 |
 |---|---|---|---|
-| `distance1` | 앞쪽 거리 | `front_proximity` | \(1-\operatorname{clip}(distance1,0,R)/R\) |
-| `distance2` | 아래쪽 거리 | `down_proximity` | \(1-\operatorname{clip}(distance2,0,R)/R\) |
-| `distance3` | 왼쪽 거리 | `left_proximity` | \(1-\operatorname{clip}(distance3,0,R)/R\) |
-| `distance4` | 오른쪽 거리 | `right_proximity` | \(1-\operatorname{clip}(distance4,0,R)/R\) |
-| `nearby_robot_ids` | 통신 범위 안의 로봇들 | `nearby_robot_fraction` | \(\min(\lvert nearby\_robot\_ids\rvert/29,1)\) |
-| `strain_value` | attachment 장력 | `strain_fraction` | \(\operatorname{clip}(strain\_value/G_{max},0,1)\) |
+| `distance1` | 앞쪽 거리 | `front_proximity` | `1 - clip(distance1, 0, R) / R` |
+| `distance2` | 아래쪽 거리 | `down_proximity` | `1 - clip(distance2, 0, R) / R` |
+| `distance3` | 왼쪽 거리 | `left_proximity` | `1 - clip(distance3, 0, R) / R` |
+| `distance4` | 오른쪽 거리 | `right_proximity` | `1 - clip(distance4, 0, R) / R` |
+| `nearby_robot_ids` | 통신 범위 안의 로봇들 | `nearby_robot_fraction` | `min(len(nearby_robot_ids) / 29, 1)` |
+| `strain_value` | attachment 장력 | `strain_fraction` | `clip(strain_value / G_max, 0, 1)` |
 | `is_curled` | 몸체가 말린 상태인지 | `is_curled` | `float(is_curled)` → 0 또는 1 |
 | `is_front_lifted` | 앞부분이 들렸는지 | `is_front_lifted` | `float(is_front_lifted)` → 0 또는 1 |
 | `is_possible_to_attach` | attachment 가능 여부 | `is_possible_to_attach` | `float(is_possible_to_attach)` → 0 또는 1 |
@@ -19,25 +19,23 @@
 | `is_detached` | 최근 분리되었는지 | `is_detached` | `float(is_detached)` → 0 또는 1 |
 | *(관측값 없음)* | 선형 모델의 상수항 | `bias` | 항상 `1.0` |
 
-여기서 `R`은 로봇 센서 최대 거리(`sensor_range_m`), `G_max`는 최대 strain 값(`maximum_strain_g`)입니다. 따라서 LinearPolicy에 들어가는 feature 벡터의 순서는 다음과 같습니다.
+여기서 `R`은 로봇 센서 최대 거리(`sensor_range_m`), `G_max`는 최대 strain 값(`maximum_strain_g`)입니다.
+LinearPolicy feature 벡터의 순서는 다음과 같습니다.
 
-\[
-\mathbf{x} =
-\begin{bmatrix}
-1,
-front\_proximity,
-down\_proximity,
-left\_proximity,
-right\_proximity,
-nearby\_robot\_fraction,
-strain\_fraction,
-is\_curled,
-is\_front\_lifted,
-is\_possible\_to\_attach,
-is\_attaching,
-is\_detached
-\end{bmatrix}^{T}
-\]
+```text
+x[0]  = 1.0                                  # bias
+x[1]  = front_proximity
+x[2]  = down_proximity
+x[3]  = left_proximity
+x[4]  = right_proximity
+x[5]  = nearby_robot_fraction
+x[6]  = strain_fraction
+x[7]  = is_curled
+x[8]  = is_front_lifted
+x[9]  = is_possible_to_attach
+x[10] = is_attaching
+x[11] = is_detached
+```
 
 - `nearby_robot_ids`: 매 step 통신 반경 0.50 m 이내 ID를 정렬해 저장합니다.
 - `strain_value`: 현재 가시 constraint 하중을 gram-force로 변환한 값입니다. 최대 표시값은 100입니다.
